@@ -31,7 +31,9 @@ impl<T: std::clone::Clone> BroadcastReceivers<T>{
 
 
 // constructing the broadcast channel
-pub fn construct<T: std::clone::Clone>(num_receivers: u8) -> (BroadcastSender<T>, BroadcastReceivers<T>) {
+pub fn construct<T: std::clone::Clone>(
+    num_receivers: u8
+    ) -> (BroadcastSender<T>, BroadcastReceivers<T>) {
     let mut senders: Vec<Sender<T>> = Vec::new();
     let mut receivers: Vec<Receiver<T>> = Vec::new();
 

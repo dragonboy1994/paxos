@@ -69,11 +69,11 @@ impl SystemHandles {
         self.leader_control_chan_sender.send(leader::ControlSignal::Run(num_broadcasts));
 
     
-        thread::sleep(Duration::from_secs(10));
+        thread::sleep(Duration::from_secs(1));
         println!("Exit signal sent; hopefully, leader and replica in paused mode");
         self.replica_control_chan_sender.send(replica::ControlSignal::Exit).unwrap();
         self.leader_control_chan_sender.send(leader::ControlSignal::Exit);
-        thread::sleep(Duration::from_secs(10));
+        thread::sleep(Duration::from_secs(1));
 
     }
 }
