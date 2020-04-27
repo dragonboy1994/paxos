@@ -1,5 +1,5 @@
 use std::thread;
-use crossbeam::channel::{unbounded, Sender, Receiver, TryRecvError, RecvError};
+use crossbeam::channel::{Receiver, TryRecvError};
 
 
 enum OperatingState {
@@ -9,7 +9,7 @@ enum OperatingState {
 } 
 
 
-
+#[derive(Clone)]
 pub enum ControlSignal {
     Paused,
     Run(u8),
@@ -76,7 +76,8 @@ impl Context {
                                     // continue to try to receive the broadcast message from replica
                                     if num <= num_msgs {
                                         // need blocking so that num increments appropriately
-                                        println!("The received number via broadcast is {}", 
+                                        println!("The received number via broadcast at leader {} is {}",
+                                                self.id, 
                                                 self.broadcast_chan_receiver.recv().unwrap()
                                             );
                                         println!("Number of messages in channel queue: {}", 
@@ -115,6 +116,7 @@ impl Context {
 
 
             ControlSignal::Run(num_msgs) => {
+                println!("Leader {} activated", self.id);
                 self.operating_state = OperatingState::Run(num_msgs);
             }
 

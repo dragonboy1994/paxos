@@ -2,6 +2,9 @@ use std::thread;
 use crossbeam::channel::{unbounded, Sender, Receiver, TryRecvError};
 use std::time::Duration;
 
+use crate::broadcast_channel::BroadcastSender;
+
+
 
 enum OperatingState {
     Paused,
@@ -10,7 +13,7 @@ enum OperatingState {
 } 
 
 
-
+#[derive(Clone)]
 pub enum ControlSignal {
     Paused,
     Run(u8),
@@ -20,14 +23,19 @@ pub enum ControlSignal {
 
 
 pub struct Context {
-    broadcast_chan_sender: Sender<u8>,
+    // handle to send broadcast messages
+    broadcast_chan_sender: BroadcastSender<u8>,
+
+    // handle to receive contral signals
     control_chan_receiver: Receiver<ControlSignal>,
+
+    // state of the replica
     operating_state: OperatingState,
 }
 
 
 
-pub fn new(broadcast_chan_sender: Sender<u8>) -> (Context, Sender<ControlSignal>) {
+pub fn new(broadcast_chan_sender: BroadcastSender<u8>) -> (Context, Sender<ControlSignal>) {
     
     let (signal_chan_sender, signal_chan_receiver) = unbounded();
 
@@ -66,7 +74,7 @@ impl Context {
                                 }
                                 Err(TryRecvError::Empty) => {
                                     if num <= num_msgs {
-                                        self.broadcast_chan_sender.send(99).unwrap();
+                                        self.broadcast_chan_sender.send(99);
                                         num += 1;
                                     } else {
                                         println!("Replica Going into paused state");
@@ -104,6 +112,7 @@ impl Context {
             }
 
             ControlSignal::Run(num_msgs) => {
+                println!("Replica activated!");
                 self.operating_state = OperatingState::Run(num_msgs);
             }
 
