@@ -1,5 +1,6 @@
 mod replica;
 mod leader;
+//mod client;
 mod broadcast_channel;
 
 //use crate::replica;
@@ -25,28 +26,31 @@ impl SystemHandles {
     pub fn new(leader_count: usize) -> SystemHandles {
 
         // get the broadcast channels for replica and leaders
-        let (broadcast_chan_sender, broadcast_chan_receivers) = broadcast_channel::construct::<u8>(leader_count.clone() as u8);
+        let (replica_leader_broadcast_chan_sender, replica_leader_broadcast_chan_receivers) 
+                                = broadcast_channel::construct::<u8>(leader_count.clone() as u8);
 
         // get the broadcast control channels for the leaders
-        let (leader_control_chan_sender, leaders_control_chan_receivers) = broadcast_channel::construct::<leader::ControlSignal>(leader_count.clone() as u8);
+        let (leader_control_chan_sender, leaders_control_chan_receivers) 
+                                = broadcast_channel::construct::<leader::ControlSignal>(leader_count.clone() as u8);
 
 
         // build the replica 
-        let (replica_context, replica_control_chan_sender) = replica::new(broadcast_chan_sender);
+        let (replica_context, replica_control_chan_sender) 
+                                = replica::new(replica_leader_broadcast_chan_sender);
         // start the replica in paused state
         replica_context.start();
 
 
 
         // prepare the receiver handles in broadcast channels for distributing among the leaders
-        let mut split_broadcast_chan_receivers = broadcast_chan_receivers.handle_split();
+        let mut split_replica_leader_broadcast_chan_receivers = replica_leader_broadcast_chan_receivers.handle_split();
         let mut split_leaders_control_chan_receivers = leaders_control_chan_receivers.handle_split();
 
         // build the leaders
         // start the leaders in paused state
         for leader_id in (0..leader_count).rev() {
             let leader_context = leader::new(leader_id as u8, 
-                                            split_broadcast_chan_receivers.pop().unwrap(), 
+                                            split_replica_leader_broadcast_chan_receivers.pop().unwrap(), 
                                             split_leaders_control_chan_receivers.pop().unwrap());
             leader_context.start(); 
         }

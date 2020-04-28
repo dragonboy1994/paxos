@@ -20,9 +20,19 @@ pub enum ControlSignal {
 
 
 pub struct Context {
+    // ID of the leader
     id: u8,
-    broadcast_chan_receiver: Receiver<u8>,
+
+    // all messages received in broadcast from replica
+    messages: Vec<u8>,
+
+    // handle for the broadcast channel between replica and leader
+    replica_leader_broadcast_chan_receiver: Receiver<u8>,
+
+    // handle for controlling the leader operating state
     control_chan_receiver: Receiver<ControlSignal>,
+
+    // operating state of the leader
     operating_state: OperatingState,
 }
 
@@ -31,13 +41,14 @@ pub struct Context {
 
 pub fn new(
     id: u8, 
-    broadcast_chan_receiver: Receiver<u8>,
+    replica_leader_broadcast_chan_receiver: Receiver<u8>,
     control_chan_receiver: Receiver<ControlSignal>
 ) -> Context {
 
     let context = Context{
         id,
-        broadcast_chan_receiver,
+        messages: Vec::new(),
+        replica_leader_broadcast_chan_receiver,
         control_chan_receiver,
         operating_state: OperatingState::Paused,
     };
@@ -53,7 +64,6 @@ impl Context {
     pub fn start(mut self) {
         thread::Builder::new()
             .spawn(move || {
-                let mut num = 1u8;
 
                 loop {
 
@@ -67,29 +77,28 @@ impl Context {
 
                         
                         OperatingState::Run(num_msgs) => {
+
+                            // analyzing under various control channel state
                             match self.control_chan_receiver.try_recv() {
+                                
+                                // some signal from replica arrived
                                 Ok(signal) => {
                                     println!("Not handled properly yet !!!!");
                                     self.handle_control_signal(signal);
                                 }
+
+                                // empty control channel, continue interacting with the replica
                                 Err(TryRecvError::Empty) => {
-                                    // continue to try to receive the broadcast message from replica
-                                    if num <= num_msgs {
-                                        // need blocking so that num increments appropriately
-                                        println!("The received number via broadcast at leader {} is {}",
-                                                self.id, 
-                                                self.broadcast_chan_receiver.recv().unwrap()
-                                            );
-                                        println!("Number of messages in channel queue: {}", 
-                                                self.broadcast_chan_receiver.len()
-                                            );
-                                        num += 1;
+                                    if self.messages.len() < num_msgs as usize {
+                                        self.processing_broadcast_message_from_replica();
                                     } else {
                                         println!("Leader {} Going into paused state", self.id);
                                         self.operating_state = OperatingState::Paused;
                                     }
-
                                 }
+
+
+                                // Disconnected control channel
                                 Err(TryRecvError::Disconnected) => panic!("Leader {} control channel detached", self.id)
                             }
                         }
@@ -98,7 +107,7 @@ impl Context {
 
 
                         OperatingState::Exit => {
-                            println!("Leader {} Exiting", self.id);
+                            println!("Leader {} exiting gracefully", self.id);
                             break;
                         }
 
@@ -107,6 +116,31 @@ impl Context {
             })
             .unwrap();
     }
+
+
+
+    // processing of the received messages
+    fn processing_broadcast_message_from_replica(&mut self) {
+         
+        // using try_recv() so that leader is free to do broadcast of its own to acceptors
+        // non-blocking from broadcast of replica desired
+        match self.replica_leader_broadcast_chan_receiver.try_recv() {
+
+            Ok(message) => {
+                println!("The received message at leader {} is {}", 
+                        self.id,
+                        message
+                        );
+                self.messages.push(message)
+            }
+            _ => {}
+
+        }
+      
+    }
+
+
+
 
     fn handle_control_signal(&mut self, signal: ControlSignal) {
         match signal {
