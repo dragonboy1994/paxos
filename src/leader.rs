@@ -26,8 +26,8 @@ pub struct Context {
     // all messages received in broadcast from replica
     messages: Vec<u8>,
 
-    // handle for the broadcast channel between replica and leader
-    replica_leader_broadcast_chan_receiver: Receiver<u8>,
+    // handle for the broadcast channel between all replicas and the leader
+    replica_leader_broadcast_chan_receiver: Vec<Receiver<u8>>,
 
     // handle for controlling the leader operating state
     control_chan_receiver: Receiver<ControlSignal>,
@@ -41,7 +41,7 @@ pub struct Context {
 
 pub fn new(
     id: u8, 
-    replica_leader_broadcast_chan_receiver: Receiver<u8>,
+    replica_leader_broadcast_chan_receiver: Vec<Receiver<u8>>,
     control_chan_receiver: Receiver<ControlSignal>
 ) -> Context {
 
@@ -68,6 +68,8 @@ impl Context {
                 loop {
 
                     match self.operating_state {
+
+
                         OperatingState::Paused => {
                             let signal = self.control_chan_receiver.recv().unwrap();
                             self.handle_control_signal(signal);
@@ -87,7 +89,7 @@ impl Context {
                                     self.handle_control_signal(signal);
                                 }
 
-                                // empty control channel, continue interacting with the replica
+                                // empty control channel, feel free to continue interacting with the replicas
                                 Err(TryRecvError::Empty) => {
                                     if self.messages.len() < num_msgs as usize {
                                         self.processing_broadcast_message_from_replica();
@@ -122,21 +124,26 @@ impl Context {
     // processing of the received messages
     fn processing_broadcast_message_from_replica(&mut self) {
          
-        // using try_recv() so that leader is free to do broadcast of its own to acceptors
-        // non-blocking from broadcast of replica desired
-        match self.replica_leader_broadcast_chan_receiver.try_recv() {
 
-            Ok(message) => {
-                println!("The received message at leader {} is {}", 
-                        self.id,
-                        message
-                        );
-                self.messages.push(message)
+        // iterate over the receiver handles from all the replicas to scan for any possible messages
+        for handle in &self.replica_leader_broadcast_chan_receiver {
+
+            // using try_recv() so that leader is free to do broadcast of its own to acceptors
+            // non-blocking from broadcast of replica desirer
+            match handle.try_recv() {
+
+                Ok(message) => {
+                    println!("The received message at leader {} is {}", 
+                            self.id,
+                            message
+                            );
+                    self.messages.push(message)
+                }
+
+                _ => {}
+
             }
-            _ => {}
-
         }
-      
     }
 
 

@@ -23,6 +23,9 @@ pub enum ControlSignal {
 
 
 pub struct Context {
+    // ID of the leader
+    id: u8,
+
     // all messages received in broadcast from replica
     // messages: Vec<u8>
 
@@ -39,18 +42,19 @@ pub struct Context {
 
 
 pub fn new(
-    replica_leader_broadcast_chan_sender: BroadcastSender<u8>
-) -> (Context, Sender<ControlSignal>) {
+    id: u8,
+    replica_leader_broadcast_chan_sender: BroadcastSender<u8>,
+    control_chan_receiver: Receiver<ControlSignal>
+) -> Context {
     
-    let (control_chan_sender, control_chan_receiver) = unbounded();
-
     let context = Context{
+        id,
         replica_leader_broadcast_chan_sender,
         control_chan_receiver,
         operating_state: OperatingState::Paused,
     };
 
-    (context, control_chan_sender)
+    context
 }
 
 
@@ -86,7 +90,7 @@ impl Context {
                                         self.processing_broadcast_message_from_client();
                                         num += 1;
                                     } else {
-                                        println!("Replica Going into paused state");
+                                        println!("Replica {} Going into paused state", self.id);
                                         self.operating_state = OperatingState::Paused;
                                     }
                                     
@@ -97,7 +101,7 @@ impl Context {
 
 
                         OperatingState::Exit => {
-                            println!("Replica exiting gracefully");
+                            println!("Replica {} exiting gracefully", self.id);
                             break;
                         } 
                         
@@ -115,7 +119,7 @@ impl Context {
 
 
     fn processing_broadcast_message_from_client(&self) {
-        self.replica_leader_broadcast_chan_sender.send(99);
+        self.replica_leader_broadcast_chan_sender.send(self.id.clone());
     }
 
 
@@ -131,12 +135,12 @@ impl Context {
             }
 
             ControlSignal::Run(num_msgs) => {
-                println!("Replica activated!");
+                println!("Replica {} activated!", self.id);
                 self.operating_state = OperatingState::Run(num_msgs);
             }
 
             ControlSignal::Exit => {
-                println!("Exit signal at Replica received");
+                println!("Exit signal at Replica {} received", self.id);
                 self.operating_state = OperatingState::Exit;
             }
         }
