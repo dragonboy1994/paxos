@@ -1,14 +1,14 @@
+mod client;
 mod replica;
 mod leader;
-//mod client;
 mod broadcast_channel;
 
 //use crate::replica;
 //use crate::leader;
-use crate::broadcast_channel::{BroadcastSender, BroadcastReceivers};
+use crate::broadcast_channel::BroadcastSender;
 
 
-use crossbeam::channel::{Sender, Receiver};
+use crossbeam::channel::Receiver;
 use log::info;
 use std::thread;
 use std::time::Duration;
@@ -18,37 +18,83 @@ use std::collections::HashMap;
 
 // contains the handles for control channels for replica and leaders
 pub struct SystemHandles {
-    replica_control_chan_sender: broadcast_channel::BroadcastSender<replica::ControlSignal>,
-    leader_control_chan_sender: broadcast_channel::BroadcastSender<leader::ControlSignal>,
+    client_control_chan_sender: BroadcastSender<client::ControlSignal>,
+    replica_control_chan_sender: BroadcastSender<replica::ControlSignal>,
+    leader_control_chan_sender: BroadcastSender<leader::ControlSignal>,
 }
 
 
 
 impl SystemHandles {
-    pub fn new(replica_count: usize, leader_count: usize) -> SystemHandles {
+    pub fn new(
+        client_count: usize, 
+        replica_count: usize, 
+        leader_count: usize
+    ) -> SystemHandles {
 
+
+        // get the client control channels for the clients
+        let (client_control_chan_sender, client_control_chan_receivers)
+            = broadcast_channel::construct::<client::ControlSignal>(client_count.clone() as u8);
 
 
         // get the broadcast control channels for the replicas
         let (replica_control_chan_sender, replica_control_chan_receivers) 
-                    = broadcast_channel::construct::<replica::ControlSignal>(replica_count.clone() as u8);
+            = broadcast_channel::construct::<replica::ControlSignal>(replica_count.clone() as u8);
 
         
         // get the broadcast control channels for the leaders
         let (leader_control_chan_sender, leader_control_chan_receivers) 
-                    = broadcast_channel::construct::<leader::ControlSignal>(leader_count.clone() as u8);
+            = broadcast_channel::construct::<leader::ControlSignal>(leader_count.clone() as u8);
+
 
 
         // get the vector of handles and then reverse it
-        // reversing eases the assignment of the handles to the replicas and leaders by pop later
+        // reversing eases the assignment of the handles to the clients, replicas and leaders by pop later
+        let mut split_client_control_chan_receivers = client_control_chan_receivers.handle_split();
         let mut split_replica_control_chan_receivers = replica_control_chan_receivers.handle_split();
         let mut split_leader_control_chan_receivers = leader_control_chan_receivers.handle_split();
+        split_client_control_chan_receivers.reverse();
         split_replica_control_chan_receivers.reverse();
         split_leader_control_chan_receivers.reverse();
 
 
-        // collecting all broadcast channel receiver handles for leaders while iterating over replicas
+        // hashmap for collecting all broadcast channel receiver handles for replicas while iterating over clients
+        let mut hashmap_client_replica_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<u8>>> = HashMap::new();
+        // hashmap for collecting all broadcast channel receiver handles for leaders while iterating over replicas
         let mut hashmap_replica_leader_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<u8>>> = HashMap::new();
+
+
+
+        // iterate over each client
+        for client_id in 0..client_count {
+
+            // get the broadcast channel from current client to all replicas
+            let (client_replica_broadcast_chan_sender, client_replica_broadcast_chan_receivers)
+                    = broadcast_channel::construct::<u8>(replica_count.clone() as u8);
+
+
+            // build the client
+            let client_context = client::new( client_id as u8, 
+                                              client_replica_broadcast_chan_sender,
+                                              split_client_control_chan_receivers.pop().unwrap()
+                                            );
+                                              
+            // start the client in paused mode
+            client_context.start();
+
+
+            // collect the receiver handles for replicas in the hashmap
+            let mut split_client_replica_broadcast_chan_receivers
+                                        = client_replica_broadcast_chan_receivers.handle_split();
+            split_client_replica_broadcast_chan_receivers.reverse();
+            hashmap_client_replica_broadcast_chan_receivers.insert(
+                client_id,
+                split_client_replica_broadcast_chan_receivers
+            ); 
+
+        }
+
 
 
 
@@ -57,6 +103,30 @@ impl SystemHandles {
         // iterate over each replica 
         for replica_id in 0..replica_count {
 
+            // collect the receiver handles of the broadcast channels from all the clients
+            let mut client_replica_broadcast_chan_receivers: Vec<Receiver<u8>> = Vec::new();
+
+            for client_id in 0..client_count {
+                // retrieving the entry corresponding to replica_id
+                // this approach taken because HashMap doesn't implement IndexMut trait
+                let mut hashmap_entry_client_id = hashmap_client_replica_broadcast_chan_receivers
+                                                .remove(&client_id)
+                                                .unwrap();
+
+                // update
+                client_replica_broadcast_chan_receivers
+                    .push(hashmap_entry_client_id.pop().unwrap());
+
+                // insert back the entry corresponding to replica_id
+                hashmap_client_replica_broadcast_chan_receivers.insert(
+                    client_id,
+                    hashmap_entry_client_id
+                );                                
+            }
+
+
+
+
             // get the broadcast channel from curent replica to all leaders
             let (replica_leader_broadcast_chan_sender, replica_leader_broadcast_chan_receivers) 
                     = broadcast_channel::construct::<u8>(leader_count.clone() as u8);
@@ -64,6 +134,7 @@ impl SystemHandles {
         
             // build the replica
             let replica_context = replica::new( replica_id as u8,
+                                                client_replica_broadcast_chan_receivers,
                                                 replica_leader_broadcast_chan_sender,
                                                 split_replica_control_chan_receivers.pop().unwrap()
                                             );
@@ -71,11 +142,11 @@ impl SystemHandles {
             // start the replica in paused mode
             replica_context.start();
 
+
+            // collect the receiver handles for leaders in the hashmap
             let mut split_replica_leader_broadcast_chan_receivers 
                                         = replica_leader_broadcast_chan_receivers.handle_split();
             split_replica_leader_broadcast_chan_receivers.reverse();
-
-            // collect the receiver handles for leaders in the hashmap
             hashmap_replica_leader_broadcast_chan_receivers.insert(
                 replica_id,
                 split_replica_leader_broadcast_chan_receivers
@@ -125,6 +196,7 @@ impl SystemHandles {
         
 
         SystemHandles{
+            client_control_chan_sender,
             replica_control_chan_sender,
             leader_control_chan_sender,
         }
@@ -132,15 +204,17 @@ impl SystemHandles {
 
 
 
-    pub fn activate_broadcast(&self, num_broadcasts: u8, replica_count: u8) {
+    pub fn activate_broadcast(&self, num_broadcasts: u8, client_count: u8, replica_count: u8) {
 
         // activating both replica and leaders; broadcast will start now
-        self.replica_control_chan_sender.send(replica::ControlSignal::Run(num_broadcasts));
-        self.leader_control_chan_sender.send(leader::ControlSignal::Run(replica_count*num_broadcasts));
+        self.client_control_chan_sender.send(client::ControlSignal::Run(num_broadcasts));
+        self.replica_control_chan_sender.send(replica::ControlSignal::Run(client_count*num_broadcasts));
+        self.leader_control_chan_sender.send(leader::ControlSignal::Run(replica_count*client_count*num_broadcasts));
 
     
         thread::sleep(Duration::from_secs(1));
         println!("Exit signal sent; hopefully, leader and replica in paused mode");
+        self.client_control_chan_sender.send(client::ControlSignal::Exit);
         self.replica_control_chan_sender.send(replica::ControlSignal::Exit);
         self.leader_control_chan_sender.send(leader::ControlSignal::Exit);
         thread::sleep(Duration::from_secs(1));
@@ -158,11 +232,12 @@ mod tests {
 
     #[test]
     fn it_works() {
+        let client_count = 3 as usize;
         let replica_count = 3 as usize;
         let leader_count = 5 as usize; 
-        let num_msgs = 5u8;
-        let system_handles = SystemHandles::new(replica_count, leader_count);
-        system_handles.activate_broadcast(num_msgs, replica_count as u8);
+        let num_msgs = 2u8;
+        let system_handles = SystemHandles::new(client_count, replica_count, leader_count);
+        system_handles.activate_broadcast(num_msgs, client_count as u8, replica_count as u8);
         assert_eq!(2 + 2, 4);
     }
 }

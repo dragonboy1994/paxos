@@ -71,6 +71,7 @@ impl Context {
 
 
                         OperatingState::Paused => {
+                            println!("Leader {} in paused mode", self.id);
                             let signal = self.control_chan_receiver.recv().unwrap();
                             self.handle_control_signal(signal);
                         }
@@ -83,9 +84,9 @@ impl Context {
                             // analyzing under various control channel state
                             match self.control_chan_receiver.try_recv() {
                                 
-                                // some signal from replica arrived
+                                // some control arrived
                                 Ok(signal) => {
-                                    println!("Not handled properly yet !!!!");
+                                    println!("Leader {} Not handled properly yet !!!!", self.id);
                                     self.handle_control_signal(signal);
                                 }
 

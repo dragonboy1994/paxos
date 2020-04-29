@@ -1,6 +1,7 @@
 use std::thread;
-use crossbeam::channel::{unbounded, Sender, Receiver, TryRecvError};
+use crossbeam::channel::{Receiver, TryRecvError};
 use std::time::Duration;
+use std::collections::VecDeque;
 
 use crate::broadcast_channel::BroadcastSender;
 
@@ -26,8 +27,15 @@ pub struct Context {
     // ID of the leader
     id: u8,
 
-    // all messages received in broadcast from replica
-    // messages: Vec<u8>
+    // collecting all messages received in broadcast at replica from client
+    // push new messages from back, pop old messages from front
+    messages_from_client: VecDeque<u8>,
+
+    // add details later
+    slot_in: u8,
+
+    // handle for the broadcast channel between all clients and the replica
+    client_replica_broadcast_chan_receiver: Vec<Receiver<u8>>,
 
     // handle to send broadcast messages
     replica_leader_broadcast_chan_sender: BroadcastSender<u8>,
@@ -43,12 +51,16 @@ pub struct Context {
 
 pub fn new(
     id: u8,
+    client_replica_broadcast_chan_receiver: Vec<Receiver<u8>>,
     replica_leader_broadcast_chan_sender: BroadcastSender<u8>,
     control_chan_receiver: Receiver<ControlSignal>
 ) -> Context {
     
     let context = Context{
         id,
+        messages_from_client: VecDeque::new(),
+        slot_in: 1u8,
+        client_replica_broadcast_chan_receiver,
         replica_leader_broadcast_chan_sender,
         control_chan_receiver,
         operating_state: OperatingState::Paused,
@@ -65,13 +77,14 @@ impl Context {
     pub fn start(mut self) {
         thread::Builder::new()
             .spawn(move || {
-                let mut num = 1u8;
+
 
                 loop {
                     match self.operating_state {
 
 
                         OperatingState::Paused => {
+                            println!("Replica {} in paused mode", self.id);
                             let signal = self.control_chan_receiver.recv().unwrap();
                             // transition in operating state
                             self.handle_control_signal(signal);
@@ -82,13 +95,13 @@ impl Context {
                             // send message to the receiver
                             match self.control_chan_receiver.try_recv() {
                                 Ok(signal) => {    
-                                    // transition in operating state                                
+                                    // transition in operating state   
+                                    println!("Replica {} Not handled properly yet !!!!", self.id);                             
                                     self.handle_control_signal(signal);
                                 }
                                 Err(TryRecvError::Empty) => {
-                                    if num <= num_msgs {
+                                    if self.slot_in <= num_msgs {
                                         self.processing_broadcast_message_from_client();
-                                        num += 1;
                                     } else {
                                         println!("Replica {} Going into paused state", self.id);
                                         self.operating_state = OperatingState::Paused;
@@ -117,9 +130,40 @@ impl Context {
 
 
 
+    // receiving and processing of the messages received from clients
+    // sending broadcast messages to the leaders
+    fn processing_broadcast_message_from_client(&mut self) {
 
-    fn processing_broadcast_message_from_client(&self) {
-        self.replica_leader_broadcast_chan_sender.send(self.id.clone());
+        // process the messages received from the clients 
+        // iterate over the receiver handles from all the clients to scan for any possible messages
+        for handle in &self.client_replica_broadcast_chan_receiver {
+
+            // using try_recv() so that we have non-blocking operation for replica
+            match handle.try_recv() {
+
+                // received a new message from client
+                Ok(message) => {
+                    println!("The received message at replica {} is {}",
+                            self.id,
+                            message
+                            );
+                    self.messages_from_client.push_back(message);
+                }
+
+                _ => {}
+
+            }
+
+        }
+
+
+        // send broadcast messages to leaders only if there is message from client
+        if self.messages_from_client.is_empty() == false {
+            self.replica_leader_broadcast_chan_sender
+                .send(self.messages_from_client.pop_front().unwrap());
+            // go into paused mode only after sending all stiplated messages
+            self.slot_in += 1; 
+        }
     }
 
 
