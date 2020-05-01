@@ -161,7 +161,7 @@ impl Context {
         if self.messages_from_client.is_empty() == false {
             self.replica_leader_broadcast_chan_sender
                 .send(self.messages_from_client.pop_front().unwrap());
-            // go into paused mode only after sending all stiplated messages
+            // go into paused mode only after sending all stipulated messages
             self.slot_in += 1; 
         }
     }

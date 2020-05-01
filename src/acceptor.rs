@@ -1,9 +1,5 @@
 use std::thread;
 use crossbeam::channel::{Receiver, TryRecvError};
-use std::time::Duration;
-use std::collections::VecDeque;
-
-use crate::broadcast_channel::BroadcastSender;
 
 
 enum OperatingState {
@@ -28,16 +24,10 @@ pub struct Context {
     id: u8,
 
     // all messages received in broadcast from replica
-    messages_from_replica: VecDeque<u8>,
+    messages: Vec<u8>,
 
-    // add details later
-    slot_in: u8,
-
-    // handle for the broadcast channel between all replicas and the leader
-    replica_leader_broadcast_chan_receiver: Vec<Receiver<u8>>,
-
-    // handle to send broadcast messages
-    leader_acceptor_broadcast_chan_sender: BroadcastSender<u8>,
+    // handle for the broadcast channel between all leaders and the acceptor
+    leader_acceptor_broadcast_chan_receiver: Vec<Receiver<u8>>,
 
     // handle for controlling the leader operating state
     control_chan_receiver: Receiver<ControlSignal>,
@@ -51,17 +41,14 @@ pub struct Context {
 
 pub fn new(
     id: u8, 
-    replica_leader_broadcast_chan_receiver: Vec<Receiver<u8>>,
-    leader_acceptor_broadcast_chan_sender: BroadcastSender<u8>,
+    leader_acceptor_broadcast_chan_receiver: Vec<Receiver<u8>>,
     control_chan_receiver: Receiver<ControlSignal>
 ) -> Context {
 
     let context = Context{
         id,
-        messages_from_replica: VecDeque::new(),
-        slot_in: 1u8,
-        replica_leader_broadcast_chan_receiver,
-        leader_acceptor_broadcast_chan_sender,
+        messages: Vec::new(),
+        leader_acceptor_broadcast_chan_receiver,
         control_chan_receiver,
         operating_state: OperatingState::Paused,
     };
@@ -69,6 +56,7 @@ pub fn new(
     context
 
 }
+
 
 
 
@@ -84,9 +72,9 @@ impl Context {
 
 
                         OperatingState::Paused => {
-                            println!("Leader {} in paused mode", self.id);
+                            println!("Acceptor {} in paused mode", self.id);
                             let signal = self.control_chan_receiver.recv().unwrap();
-                            self.handle_control_signal(signal);
+                            self.control_signal_processing(signal);
                         }
 
 
@@ -99,23 +87,23 @@ impl Context {
                                 
                                 // some control arrived
                                 Ok(signal) => {
-                                    println!("Leader {} Not handled properly yet !!!!", self.id);
-                                    self.handle_control_signal(signal);
+                                    println!("Acceptor {} going premature exit !!!!", self.id);
+                                    self.control_signal_processing(signal);
                                 }
 
                                 // empty control channel, feel free to continue interacting with the replicas
                                 Err(TryRecvError::Empty) => {
-                                    if self.slot_in <= num_msgs {
-                                        self.processing_broadcast_message_from_replica();
+                                    if self.messages.len() < num_msgs as usize {
+                                        self.message_processing();
                                     } else {
-                                        println!("Leader {} Going into paused state", self.id);
+                                        println!("Acceptor {} going into paused state", self.id);
                                         self.operating_state = OperatingState::Paused;
                                     }
                                 }
 
 
                                 // Disconnected control channel
-                                Err(TryRecvError::Disconnected) => panic!("Leader {} control channel detached", self.id)
+                                Err(TryRecvError::Disconnected) => panic!("Acceptor {} control channel detached", self.id)
                             }
                         }
 
@@ -123,59 +111,41 @@ impl Context {
 
 
                         OperatingState::Exit => {
-                            println!("Leader {} exiting gracefully", self.id);
+                            println!("Acceptor {} exiting gracefully", self.id);
                             break;
                         }
 
                     }
-
-                    thread::sleep(Duration::from_nanos(100));
                 }
             })
             .unwrap();
     }
-
-
-
+   
     // processing of the received messages
-    fn processing_broadcast_message_from_replica(&mut self) {
+    fn message_processing(&mut self) {
          
+        // iterate over the receiver handles from all the leaders to scan for any possible messages
+        for handle in &self.leader_acceptor_broadcast_chan_receiver {
 
-        // iterate over the receiver handles from all the replicas to scan for any possible messages
-        for handle in &self.replica_leader_broadcast_chan_receiver {
-
-            // using try_recv() so that leader is free to do broadcast of its own to acceptors
-            // non-blocking from broadcast of replica desirer
+            // using try_recv() so that acceptor is free to do other activities
             match handle.try_recv() {
 
                 Ok(message) => {
-                    println!("The received message at leader {} is {}", 
+                    println!("The received message at acceptor {} is {}", 
                             self.id,
                             message
                             );
-                    self.messages_from_replica.push_back(message);
+                    self.messages.push(message)
                 }
 
                 _ => {}
 
             }
         }
-
-        // send broadcast messages to acceptors only if there is message from client
-        if self.messages_from_replica.is_empty() == false {
-            self.leader_acceptor_broadcast_chan_sender
-                .send(self.messages_from_replica.pop_front().unwrap());
-            // go into paused mode only after sending all stipulated messages
-            self.slot_in += 1;
-        }
-
-
     }
 
 
-
-
-    fn handle_control_signal(&mut self, signal: ControlSignal) {
+    fn control_signal_processing(&mut self, signal: ControlSignal) {
         match signal {
             ControlSignal::Paused => {
                 self.operating_state = OperatingState::Paused;
@@ -183,15 +153,16 @@ impl Context {
 
 
             ControlSignal::Run(num_msgs) => {
-                println!("Leader {} activated", self.id);
+                println!("Acceptor {} activated", self.id);
                 self.operating_state = OperatingState::Run(num_msgs);
             }
 
             ControlSignal::Exit => {
-                println!("Exit signal at Leader {} received", self.id);
+                println!("Exit signal at Acceptor {} received", self.id);
                 self.operating_state = OperatingState::Exit;
             }
         }
-    }
+    }    
+
 
 }
