@@ -1,8 +1,12 @@
+#![allow(unused)]
+
+
 mod client;
 mod replica;
 mod leader;
 mod acceptor;
 mod broadcast_channel;
+mod utils;
 
 //use crate::replica;
 //use crate::leader;
