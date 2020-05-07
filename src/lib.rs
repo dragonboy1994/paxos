@@ -102,6 +102,9 @@ impl SystemHandles {
 
 
 
+
+            
+
         // iterating over the leader
         for leader_id in 0..leader_count {
             // get the broadcasts channel from the leader to replicas
@@ -119,6 +122,12 @@ impl SystemHandles {
             hashmap_leader_replica_broadcast_chan_receivers
                 .insert(leader_id, split_leader_replica_broadcast_chan_receivers);
         }
+
+
+
+
+
+
 
 
 
@@ -151,6 +160,10 @@ impl SystemHandles {
             hashmap_client_replica_broadcast_chan_receivers
                 .insert(client_id, split_client_replica_broadcast_chan_receivers);
         }
+
+
+
+
 
 
 
@@ -223,6 +236,10 @@ impl SystemHandles {
 
 
 
+
+
+
+
         // iterate over each leader
         for leader_id in 0..leader_count {
             // collect the receiver handles of the broadcast channels from all the replicas
@@ -284,6 +301,12 @@ impl SystemHandles {
             hashmap_leader_acceptor_broadcast_chan_receivers
                 .insert(leader_id, split_leader_acceptor_broadcast_chan_receivers);
         }
+
+
+
+
+
+
 
 
 
