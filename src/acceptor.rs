@@ -1,4 +1,4 @@
-use crossbeam::channel::{Receiver, TryRecvError};
+use crossbeam::channel::{Sender, Receiver, TryRecvError};
 use std::thread;
 
 enum OperatingState {
