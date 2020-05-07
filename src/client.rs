@@ -1,17 +1,14 @@
-use std::thread;
 use crossbeam::channel::{Receiver, TryRecvError};
+use std::thread;
 use std::time::Duration;
 
 use crate::broadcast_channel::BroadcastSender;
-
-
 
 enum OperatingState {
     Paused,
     Run(u8),
     Exit,
-} 
-
+}
 
 #[derive(Clone)]
 pub enum ControlSignal {
@@ -20,36 +17,33 @@ pub enum ControlSignal {
     Exit,
 }
 
-
-
-
 pub struct Context {
-
     // ID of the client
     id: u8,
 
     // handle to send broadcast message to replica
     client_replica_broadcast_chan_sender: BroadcastSender<u8>,
 
+    // handle to the receiver handle for mpsc channel from all replicas
+    replica_client_mpsc_chan_receiver: Receiver<u8>,
+
     // handle to receive control signals
     control_chan_receiver: Receiver<ControlSignal>,
 
     // state of the replica
-    operating_state: OperatingState,    
+    operating_state: OperatingState,
 }
-
-
-
 
 pub fn new(
     id: u8,
     client_replica_broadcast_chan_sender: BroadcastSender<u8>,
-    control_chan_receiver: Receiver<ControlSignal>
+    replica_client_mpsc_chan_receiver: Receiver<u8>,
+    control_chan_receiver: Receiver<ControlSignal>,
 ) -> Context {
-    
-    let context = Context{
+    let context = Context {
         id,
         client_replica_broadcast_chan_sender,
+        replica_client_mpsc_chan_receiver,
         control_chan_receiver,
         operating_state: OperatingState::Paused,
     };
@@ -57,11 +51,7 @@ pub fn new(
     context
 }
 
-
-
-
 impl Context {
-
     pub fn start(mut self) {
         thread::Builder::new()
             .spawn(move || {
@@ -69,8 +59,6 @@ impl Context {
 
                 loop {
                     match self.operating_state {
-
-
                         OperatingState::Paused => {
                             println!("Client {} in paused mode", self.id);
                             let signal = self.control_chan_receiver.recv().unwrap();
@@ -78,13 +66,12 @@ impl Context {
                             self.handle_control_signal(signal);
                         }
 
-
                         OperatingState::Run(num_msgs) => {
-                            // pattern matching the control channel messages 
+                            // pattern matching the control channel messages
                             match self.control_chan_receiver.try_recv() {
-                                Ok(signal) => {    
+                                Ok(signal) => {
                                     println!("Client {} Not handled properly yet !!!!", self.id);
-                                    // transition in operating state                                
+                                    // transition in operating state
                                     self.handle_control_signal(signal);
                                 }
                                 Err(TryRecvError::Empty) => {
@@ -95,39 +82,33 @@ impl Context {
                                         println!("Client {} Going into paused state", self.id);
                                         self.operating_state = OperatingState::Paused;
                                     }
-                                    
                                 }
-                                Err(TryRecvError::Disconnected) => panic!("Client control channel detached")
+                                Err(TryRecvError::Disconnected) => {
+                                    panic!("Client control channel detached")
+                                }
                             };
                         }
-
 
                         OperatingState::Exit => {
                             println!("Client {} exiting gracefully", self.id);
                             break;
-                        } 
-                        
+                        }
                     }
 
                     thread::sleep(Duration::from_nanos(100));
                 }
-
             })
             .unwrap();
     }
 
-
-
     fn send_broadcast_message(&self) {
         println!("Client {} has broadcast", self.id);
-        self.client_replica_broadcast_chan_sender.send(self.id.clone());
+        self.client_replica_broadcast_chan_sender
+            .send(self.id.clone());
     }
 
-
-
-
     fn handle_control_signal(&mut self, signal: ControlSignal) {
-        // change the operating state 
+        // change the operating state
         match signal {
             ControlSignal::Paused => {
                 self.operating_state = OperatingState::Paused;
@@ -144,9 +125,4 @@ impl Context {
             }
         }
     }
-
-
-
 }
-
-

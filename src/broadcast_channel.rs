@@ -1,13 +1,10 @@
-use crossbeam::channel::{unbounded, Sender, Receiver};
+use crossbeam::channel::{unbounded, Receiver, Sender};
 
 // all sender handles of the broadcast channel
-pub struct BroadcastSender<T> (Vec<Sender<T>>);
-
+pub struct BroadcastSender<T>(Vec<Sender<T>>);
 
 // all receiver handles of the broadcast channel
-pub struct BroadcastReceivers<T> (Vec<Receiver<T>>);
-
-
+pub struct BroadcastReceivers<T>(Vec<Receiver<T>>);
 
 impl<T: std::clone::Clone> BroadcastSender<T> {
     // send data to all receivers
@@ -19,21 +16,17 @@ impl<T: std::clone::Clone> BroadcastSender<T> {
     }
 }
 
-
-
-impl<T: std::clone::Clone> BroadcastReceivers<T>{
+impl<T: std::clone::Clone> BroadcastReceivers<T> {
     // return the receiver handles
     pub fn handle_split(self) -> Vec<Receiver<T>> {
         self.0
     }
 }
 
-
-
 // constructing the broadcast channel
 pub fn construct<T: std::clone::Clone>(
-    num_receivers: u8
-    ) -> (BroadcastSender<T>, BroadcastReceivers<T>) {
+    num_receivers: u8,
+) -> (BroadcastSender<T>, BroadcastReceivers<T>) {
     let mut senders: Vec<Sender<T>> = Vec::new();
     let mut receivers: Vec<Receiver<T>> = Vec::new();
 
@@ -44,8 +37,4 @@ pub fn construct<T: std::clone::Clone>(
     }
 
     (BroadcastSender(senders), BroadcastReceivers(receivers))
-
 }
-
-
-

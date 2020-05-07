@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 
-
 pub enum Operation {
     Add(f64),
     Subtract(f64),
@@ -15,8 +14,6 @@ pub struct Command {
     operation: Operation,
 }
 
-
-
 // structure of ballot number as a lexocographically ordered pair
 // need to order Partial ordering
 #[derive(Eq)]
@@ -25,14 +22,12 @@ pub struct Ballot {
     leader_id: u8,
 }
 
-
-// the structure of pvalues included in the messages between leader and acceptors 
+// the structure of pvalues included in the messages between leader and acceptors
 pub struct Pvalue {
     ballot: Ballot,
     slot: u8,
     command: Command,
 }
-
 
 // sent by clients to replicas
 pub struct Request {
@@ -45,14 +40,11 @@ pub struct Response {
     result: f64,
 }
 
-
 // sent by replicas to the leaders
 pub struct Propose {
     slot: u8,
     command: Command,
 }
-
-
 
 // sent by the commander in leaders to the replicas
 pub struct Decision {
@@ -60,29 +52,22 @@ pub struct Decision {
     command: Command,
 }
 
-
 // sent by scout to its leader
 pub struct Adopted {
     ballot: Ballot,
     pvalues: Vec<Pvalue>,
 }
 
-
-
 // sent by scout/commander to its leader
 pub struct Preempted {
     ballot: Ballot,
 }
-
-
-
 
 // sent by scout to the acceptor
 pub struct P1a {
     leader_id: u8,
     ballot: Ballot,
 }
-
 
 // sent by acceptor to the scout
 pub struct P1b {
@@ -93,13 +78,11 @@ pub struct P1b {
     accepted: Vec<Pvalue>,
 }
 
-
 // sent by commander to the acceptor
 pub struct P2a {
     leader_id: u8,
     pvalue: Pvalue,
 }
-
 
 // sent by the acceptor to the commander
 pub struct P2b {
@@ -107,17 +90,18 @@ pub struct P2b {
     ballot: Ballot,
 }
 
-
-
-
 impl Ord for Ballot {
     fn cmp(&self, other: &Self) -> Ordering {
         if self.count != other.count {
             self.count.cmp(&other.count)
         } else {
-            if self.leader_id < other.leader_id { Ordering::Less }
-            else if self.leader_id == other.leader_id { Ordering::Equal }
-            else { Ordering::Greater }
+            if self.leader_id < other.leader_id {
+                Ordering::Less
+            } else if self.leader_id == other.leader_id {
+                Ordering::Equal
+            } else {
+                Ordering::Greater
+            }
         }
     }
 }
