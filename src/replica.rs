@@ -4,6 +4,8 @@ use std::thread;
 use std::time::Duration;
 
 use crate::broadcast_channel::BroadcastSender;
+use crate::utils::{Operation, Command, Request};
+
 
 enum OperatingState {
     Paused,
@@ -22,15 +24,15 @@ pub struct Context {
     // ID of the leader
     id: u8,
 
+
+
+    // for broadcast mechanism
     // collecting all messages received in broadcast at replica from client
     // push new messages from back, pop old messages from front
     messages_from_client: VecDeque<u8>,
 
-    // add details later
-    slot_in: u8,
-
     // handle for the broadcast channel between all clients and the replica
-    client_replica_broadcast_chan_receiver: Vec<Receiver<u8>>,
+    client_replica_broadcast_chan_receiver: Vec<Receiver<Request>>,
 
     // vec of handle for the mpsc channels from the replica to all the clients
     replica_all_clients_mpsc_chan_senders: Vec<Sender<u8>>,
@@ -44,13 +46,30 @@ pub struct Context {
     // handle to receive contral signals
     control_chan_receiver: Receiver<ControlSignal>,
 
-    // state of the replica
+    // operation state of the replica
     operating_state: OperatingState,
+
+
+
+    // for consensus mechanism
+    // all taken from the PMMC paper
+    // application state
+    // state: u8 
+
+    // index of the next slot in replica has not proposed any command yet
+    slot_in: u8,
+
+    // index of the next slot for which decision has to be leanred before it can update application state
+    // slot_out: u8,
+
+
+
+
 }
 
 pub fn new(
     id: u8,
-    client_replica_broadcast_chan_receiver: Vec<Receiver<u8>>,
+    client_replica_broadcast_chan_receiver: Vec<Receiver<Request>>,
     replica_all_clients_mpsc_chan_senders: Vec<Sender<u8>>,
     replica_leader_broadcast_chan_sender: BroadcastSender<u8>,
     leader_replica_broadcast_chan_receiver: Vec<Receiver<u8>>,
@@ -128,8 +147,8 @@ impl Context {
             match handle.try_recv() {
                 // received a new message from client
                 Ok(message) => {
-                    println!("The received message at replica {} is {}", self.id, message);
-                    self.messages_from_client.push_back(message);
+                    println!("The received message at replica {} is {:#?}", self.id, message);
+                    self.messages_from_client.push_back(message.get_command().get_command_id());
                 }
 
                 _ => {}

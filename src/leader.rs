@@ -126,6 +126,9 @@ impl Context {
             .unwrap();
     }
 
+
+
+
     // processing of the received messages
     fn processing_broadcast_message_from_replica(&mut self) {
         // iterate over the receiver handles from all the replicas to scan for any possible messages
@@ -151,6 +154,10 @@ impl Context {
         }
     }
 
+
+
+
+    
     fn handle_control_signal(&mut self, signal: ControlSignal) {
         match signal {
             ControlSignal::Paused => {

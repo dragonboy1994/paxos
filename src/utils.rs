@@ -1,6 +1,8 @@
 use std::cmp::Ordering;
 
+#[derive(Debug, Clone)]
 pub enum Operation {
+    Null,
     Add(f64),
     Subtract(f64),
     Multiply(f64),
@@ -8,6 +10,7 @@ pub enum Operation {
 }
 
 // the structure of command that is sent by clients to the replicas
+#[derive(Debug, Clone)]
 pub struct Command {
     client_id: u8,
     command_id: u8,
@@ -30,6 +33,7 @@ pub struct Pvalue {
 }
 
 // sent by clients to replicas
+#[derive(Debug, Clone)]
 pub struct Request {
     command: Command,
 }
@@ -89,6 +93,36 @@ pub struct P2b {
     acceptor_id: u8,
     ballot: Ballot,
 }
+
+
+impl Command {
+    pub fn create(
+        client_id: u8,
+        command_id: u8,
+        operation: Operation 
+    ) -> Command {
+        Command{
+            client_id,
+            command_id,
+            operation
+        }
+    }
+
+    pub fn get_command_id(&self) -> u8 {
+        self.command_id.clone()
+    }
+}
+
+impl Request {
+    pub fn create(command: Command) -> Request {
+        Request{ command }
+    }
+
+    pub fn get_command(self) -> Command {
+        self.command
+    }
+}
+
 
 impl Ord for Ballot {
     fn cmp(&self, other: &Self) -> Ordering {

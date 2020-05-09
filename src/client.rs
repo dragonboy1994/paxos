@@ -3,6 +3,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::broadcast_channel::BroadcastSender;
+use crate::utils::{Operation, Command, Request};
 
 enum OperatingState {
     Paused,
@@ -22,7 +23,7 @@ pub struct Context {
     id: u8,
 
     // handle to send broadcast message to replica
-    client_replica_broadcast_chan_sender: BroadcastSender<u8>,
+    client_replica_broadcast_chan_sender: BroadcastSender<Request>,
 
     // handle to the receiver handle for mpsc channel from all replicas
     replica_client_mpsc_chan_receiver: Receiver<u8>,
@@ -36,7 +37,7 @@ pub struct Context {
 
 pub fn new(
     id: u8,
-    client_replica_broadcast_chan_sender: BroadcastSender<u8>,
+    client_replica_broadcast_chan_sender: BroadcastSender<Request>,
     replica_client_mpsc_chan_receiver: Receiver<u8>,
     control_chan_receiver: Receiver<ControlSignal>,
 ) -> Context {
@@ -76,7 +77,7 @@ impl Context {
                                 }
                                 Err(TryRecvError::Empty) => {
                                     if num <= num_msgs {
-                                        self.send_broadcast_message();
+                                        self.send_broadcast_message(num.clone());
                                         num += 1;
                                     } else {
                                         println!("Client {} Going into paused state", self.id);
@@ -101,10 +102,23 @@ impl Context {
             .unwrap();
     }
 
-    fn send_broadcast_message(&self) {
-        println!("Client {} has broadcast", self.id);
+    fn send_broadcast_message(&self, num: u8) {
+        let mut operation = Operation::Null;
+
+        match num%4 {
+            0 => { operation = Operation::Add(1f64); }
+            1 => { operation = Operation::Subtract(1f64); }
+            2 => { operation = Operation::Multiply(2f64); }
+            3 => { operation = Operation::Divide(2f64); }
+            _ => {println!("This is incomplete!!!! Need makeover");}
+        }
+
+        let command = Command::create( self.id.clone(), num, operation);
+        println!("Command is {:#?}", command);
+
+        println!("Client {} has broadcast a command", self.id);
         self.client_replica_broadcast_chan_sender
-            .send(self.id.clone());
+            .send(Request::create(command));
     }
 
     fn handle_control_signal(&mut self, signal: ControlSignal) {

@@ -10,6 +10,8 @@ mod utils;
 //use crate::replica;
 //use crate::leader;
 use crate::broadcast_channel::BroadcastSender;
+use crate::utils::{Operation, Command, Request};
+
 
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use log::info;
@@ -69,7 +71,7 @@ impl SystemHandles {
 
 
         // hashmap for collecting all broadcast channel receiver handles for replicas while iterating over clients
-        let mut hashmap_client_replica_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<u8>>> =
+        let mut hashmap_client_replica_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<Request>>> =
             HashMap::new();
         // hashmap for collecting all broadcast channel receiver handles for leaders while iterating over replicas
         let mut hashmap_replica_leader_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<u8>>> =
@@ -103,7 +105,7 @@ impl SystemHandles {
 
 
 
-            
+
 
         // iterating over the leader
         for leader_id in 0..leader_count {
@@ -135,7 +137,7 @@ impl SystemHandles {
         for client_id in 0..client_count {
             // get the broadcast channel from current client to all replicas
             let (client_replica_broadcast_chan_sender, client_replica_broadcast_chan_receivers) =
-                broadcast_channel::construct::<u8>(replica_count.clone() as u8);
+                broadcast_channel::construct::<Request>(replica_count.clone() as u8);
 
             // get the mpsc channel from replicas to client
             let (replica_client_mpsc_chan_sender, replica_client_mpsc_chan_receiver) = unbounded();
@@ -173,7 +175,7 @@ impl SystemHandles {
         // iterate over each replica
         for replica_id in 0..replica_count {
             // collect the receiver handles of the broadcast channels from all the clients
-            let mut client_replica_broadcast_chan_receivers: Vec<Receiver<u8>> = Vec::new();
+            let mut client_replica_broadcast_chan_receivers: Vec<Receiver<Request>> = Vec::new();
             for client_id in 0..client_count {
                 // retrieving the entry corresponding to replica_id
                 // this approach taken because HashMap doesn't implement IndexMut trait
@@ -401,9 +403,9 @@ mod tests {
     fn it_works() {
         let client_count = 2 as usize;
         let replica_count = 3 as usize;
-        let leader_count = 5 as usize;
-        let acceptor_count = 7 as usize;
-        let num_msgs = 2u8;
+        let leader_count = 3 as usize;
+        let acceptor_count = 3 as usize;
+        let num_msgs = 4u8;
         let system_handles = SystemHandles::system_handle_management(
             client_count,
             replica_count,
