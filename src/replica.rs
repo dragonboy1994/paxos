@@ -2,6 +2,8 @@ use crossbeam::channel::{Receiver, Sender, TryRecvError};
 use std::collections::VecDeque;
 use std::thread;
 use std::time::Duration;
+use std::collections::HashMap;
+
 
 use crate::broadcast_channel::BroadcastSender;
 use crate::utils::{Operation, Command, Request};
@@ -54,16 +56,25 @@ pub struct Context {
     // for consensus mechanism
     // all taken from the PMMC paper
     // application state
-    // state: u8 
+    state: u8, 
 
     // index of the next slot in replica has not proposed any command yet
     slot_in: u8,
 
     // index of the next slot for which decision has to be leanred before it can update application state
-    // slot_out: u8,
+    slot_out: u8,
 
+    // set of requests that replica hasn't proposed or decided yet
+    requests: Vec<Command>,
 
+    // set of proposals that are currently outstanding
+    proposals: HashMap<u8, Command>,
 
+    // set of proposals that are known to have been decided
+    decisions: HashMap<u8, Command>,
+
+    // skipping the leaders for now
+    //static configuration
 
 }
 
@@ -78,13 +89,18 @@ pub fn new(
     let context = Context {
         id,
         messages_from_client: VecDeque::new(),
-        slot_in: 1u8,
         client_replica_broadcast_chan_receiver,
         replica_all_clients_mpsc_chan_senders,
         replica_leader_broadcast_chan_sender,
         leader_replica_broadcast_chan_receiver,
         control_chan_receiver,
         operating_state: OperatingState::Paused,
+        state: 0,
+        slot_in: 1u8,
+        slot_out: 1u8,
+        requests: Vec::new(),
+        proposals: HashMap::new(),
+        decisions: HashMap::new()
     };
 
     context

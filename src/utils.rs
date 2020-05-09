@@ -46,7 +46,7 @@ pub struct Response {
 
 // sent by replicas to the leaders
 pub struct Propose {
-    slot: u8,
+    slot_in: u8,
     command: Command,
 }
 
