@@ -18,13 +18,14 @@ pub struct Command {
 
 // structure of ballot number as a lexocographically ordered pair
 // need to order Partial ordering
-#[derive(Eq)]
+#[derive(Eq, Debug, Clone)]
 pub struct Ballot {
     count: u16,
     leader_id: u8,
 }
 
 // the structure of pvalues included in the messages between leader and acceptors
+#[derive(Debug, Clone)]
 pub struct Pvalue {
     ballot: Ballot,
     slot: u8,
@@ -57,6 +58,7 @@ pub struct Decision {
 }
 
 // sent by scout to its leader
+#[derive(Debug, Clone)]
 pub struct Adopted {
     ballot: Ballot,
     pvalues: Vec<Pvalue>,
@@ -68,6 +70,7 @@ pub struct Preempted {
 }
 
 // sent by scout to the acceptor
+#[derive(Debug, Clone)]
 pub struct P1a {
     leader_id: u8,
     ballot: Ballot,

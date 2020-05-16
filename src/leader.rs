@@ -4,7 +4,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::broadcast_channel::BroadcastSender;
-use crate::utils::{Operation, Command, Decision};
+use crate::utils::{Operation, Command, Decision, P1a};
 
 
 enum OperatingState {
@@ -40,6 +40,9 @@ pub struct Context {
     // handle to send broadcast messages to acceptors
     leader_acceptor_broadcast_chan_sender: BroadcastSender<u8>,
 
+    // handle to send broadcast messages from scouts to acceptors
+    scout_acceptor_broadcast_chan_sender: BroadcastSender<P1a>,
+
     // receiving handle for the mpsc channel to commander from all the acceptors
     acceptor_leader_for_commander_mpsc_chan_receiver: Receiver<u8>,
 
@@ -58,6 +61,7 @@ pub fn new(
     replica_leader_broadcast_chan_receiver: Vec<Receiver<u8>>,
     leader_replica_broadcast_chan_sender: BroadcastSender<Decision>,
     leader_acceptor_broadcast_chan_sender: BroadcastSender<u8>,
+    scout_acceptor_broadcast_chan_sender: BroadcastSender<P1a>,
     acceptor_leader_for_commander_mpsc_chan_receiver: Receiver<u8>,
     acceptor_leader_for_scout_mpsc_chan_receiver: Receiver<u8>,
     control_chan_receiver: Receiver<ControlSignal>,
@@ -69,6 +73,7 @@ pub fn new(
         replica_leader_broadcast_chan_receiver,
         leader_replica_broadcast_chan_sender,
         leader_acceptor_broadcast_chan_sender,
+        scout_acceptor_broadcast_chan_sender,
         acceptor_leader_for_commander_mpsc_chan_receiver,
         acceptor_leader_for_scout_mpsc_chan_receiver,
         control_chan_receiver,

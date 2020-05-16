@@ -1,6 +1,8 @@
 use crossbeam::channel::{Sender, Receiver, TryRecvError};
 use std::thread;
 
+use crate::utils::P1a;
+
 enum OperatingState {
     Paused,
     Run(u8),
@@ -24,6 +26,10 @@ pub struct Context {
     // handle for the broadcast channel between all leaders and the acceptor
     leader_acceptor_broadcast_chan_receiver: Vec<Receiver<u8>>,
 
+
+    // handle for the broadcast channel between all scouts and the acceptor
+    scout_acceptor_broadcast_chan_receiver: Vec<Receiver<P1a>>,
+
     // vec of handle for the mpsc channels from the acceptor to all the leaders for the commanders
     // the sender handle is shared with other acceptors
     acceptor_leader_for_commander_mpsc_chan_senders: Vec<Sender<u8>>,
@@ -42,6 +48,7 @@ pub struct Context {
 pub fn new(
     id: u8,
     leader_acceptor_broadcast_chan_receiver: Vec<Receiver<u8>>,
+    scout_acceptor_broadcast_chan_receiver: Vec<Receiver<P1a>>,
     acceptor_leader_for_commander_mpsc_chan_senders: Vec<Sender<u8>>,
     acceptor_leader_for_scout_mpsc_chan_senders: Vec<Sender<u8>>,
     control_chan_receiver: Receiver<ControlSignal>,
@@ -50,6 +57,7 @@ pub fn new(
         id,
         messages: Vec::new(),
         leader_acceptor_broadcast_chan_receiver,
+        scout_acceptor_broadcast_chan_receiver,
         acceptor_leader_for_commander_mpsc_chan_senders,
         acceptor_leader_for_scout_mpsc_chan_senders,
         control_chan_receiver,
@@ -125,6 +133,22 @@ impl Context {
             }
         }
     }
+
+
+
+
+
+    fn processing_p1a_message_from_scout(&mut self) {
+        unimplemented!()
+    }
+
+
+    fn processing_p2a_message_from_commander(&mut self) {
+        unimplemented!()
+    }
+
+
+
 
     fn control_signal_processing(&mut self, signal: ControlSignal) {
         match signal {

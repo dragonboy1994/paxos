@@ -10,7 +10,7 @@ mod utils;
 //use crate::replica;
 //use crate::leader;
 use crate::broadcast_channel::BroadcastSender;
-use crate::utils::{Operation, Command, Request, Decision, Response};
+use crate::utils::{Operation, Command, Request, Decision, Response, P1a};
 
 
 use crossbeam::channel::{unbounded, Receiver, Sender};
@@ -77,10 +77,10 @@ impl SystemHandles {
         let mut hashmap_replica_leader_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<u8>>> =
             HashMap::new();
         // hashmap for collecting all broadcast channel receiver handles for acceptors while iterating over leaders
-        let mut hashmap_leader_acceptor_broadcast_chan_receivers: HashMap<
-            usize,
-            Vec<Receiver<u8>>,
-        > = HashMap::new();
+        let mut hashmap_leader_acceptor_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<u8>>> = 
+            HashMap::new();
+        let mut hashmap_scout_acceptor_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<P1a>>> = 
+            HashMap::new();
 
 
 
@@ -266,6 +266,8 @@ impl SystemHandles {
             // get the broadcast channel from curent leader to all acceptors
             let (leader_acceptor_broadcast_chan_sender, leader_acceptor_broadcast_chan_receivers) =
                 broadcast_channel::construct::<u8>(acceptor_count.clone() as u8);
+            let (scout_acceptor_broadcast_chan_sender, scout_acceptor_broadcast_chan_receivers) =
+                broadcast_channel::construct::<P1a>(acceptor_count.clone() as u8);
 
 
             // get the mpsc channel from acceptors to the leaders
@@ -288,6 +290,7 @@ impl SystemHandles {
                     .remove(&leader_id)
                     .unwrap(),
                 leader_acceptor_broadcast_chan_sender,
+                scout_acceptor_broadcast_chan_sender,
                 acceptor_leader_for_commander_mpsc_chan_receiver,
                 acceptor_leader_for_scout_mpsc_chan_receiver,
                 split_leader_control_chan_receivers.pop().unwrap(),
@@ -302,6 +305,13 @@ impl SystemHandles {
             split_leader_acceptor_broadcast_chan_receivers.reverse();
             hashmap_leader_acceptor_broadcast_chan_receivers
                 .insert(leader_id, split_leader_acceptor_broadcast_chan_receivers);
+
+
+            let mut split_scout_acceptor_broadcast_chan_receivers = 
+                scout_acceptor_broadcast_chan_receivers.handle_split();
+            split_scout_acceptor_broadcast_chan_receivers.reverse();
+            hashmap_scout_acceptor_broadcast_chan_receivers
+                .insert(leader_id, split_scout_acceptor_broadcast_chan_receivers);
         }
 
 
@@ -337,10 +347,26 @@ impl SystemHandles {
                     .insert(leader_id, hashmap_entry_leader_id);
             }
 
+
+
+            let mut scout_acceptor_broadcast_chan_receivers: Vec<Receiver<P1a>> = Vec::new();
+            for leader_id in 0..leader_count {
+                let mut hashmap_entry_scout_id = hashmap_scout_acceptor_broadcast_chan_receivers
+                    .remove(&leader_id)
+                    .unwrap();
+                scout_acceptor_broadcast_chan_receivers
+                    .push(hashmap_entry_scout_id.pop().unwrap());
+                hashmap_scout_acceptor_broadcast_chan_receivers
+                    .insert(leader_id, hashmap_entry_scout_id);
+            }
+
+
+
             // build the acceptor
             let acceptor_context = acceptor::new(
                 acceptor_id as u8,
                 leader_acceptor_broadcast_chan_receivers,
+                scout_acceptor_broadcast_chan_receivers,
                 acceptor_all_leaders_for_commanders_mpsc_chan_senders.clone(),
                 acceptor_all_leaders_for_scouts_mpsc_chan_senders.clone(),
                 split_acceptor_control_chan_receivers.pop().unwrap(),
@@ -349,6 +375,8 @@ impl SystemHandles {
             // start the acceptor in paused mode
             acceptor_context.start();
         }
+
+
 
         SystemHandles {
             client_control_chan_sender,
