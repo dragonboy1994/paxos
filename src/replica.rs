@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 
 use crate::broadcast_channel::BroadcastSender;
-use crate::utils::{Operation, Command, Request};
+use crate::utils::{Operation, Command, Request, Decision, Response, Propose};
 
 
 enum OperatingState {
@@ -31,19 +31,20 @@ pub struct Context {
     // for broadcast mechanism
     // collecting all messages received in broadcast at replica from client
     // push new messages from back, pop old messages from front
+    // this is a dummy variable -> remove later
     messages_from_client: VecDeque<u8>,
 
     // handle for the broadcast channel between all clients and the replica
     client_replica_broadcast_chan_receiver: Vec<Receiver<Request>>,
 
     // vec of handle for the mpsc channels from the replica to all the clients
-    replica_all_clients_mpsc_chan_senders: Vec<Sender<u8>>,
+    replica_all_clients_mpsc_chan_senders: Vec<Sender<Response>>,
 
     // handle to send broadcast messages to the leaders
     replica_leader_broadcast_chan_sender: BroadcastSender<u8>,
 
     // handle for the receiver side of broadcast channel between all leaders and the replica
-    leader_replica_broadcast_chan_receiver: Vec<Receiver<u8>>,
+    leader_replica_broadcast_chan_receiver: Vec<Receiver<Decision>>,
 
     // handle to receive contral signals
     control_chan_receiver: Receiver<ControlSignal>,
@@ -56,7 +57,7 @@ pub struct Context {
     // for consensus mechanism
     // all taken from the PMMC paper
     // application state
-    state: u8, 
+    state: u32, 
 
     // index of the next slot in replica has not proposed any command yet
     slot_in: u8,
@@ -65,7 +66,7 @@ pub struct Context {
     slot_out: u8,
 
     // set of requests that replica hasn't proposed or decided yet
-    requests: Vec<Command>,
+    requests: VecDeque<Command>,
 
     // set of proposals that are currently outstanding
     proposals: HashMap<u8, Command>,
@@ -81,9 +82,9 @@ pub struct Context {
 pub fn new(
     id: u8,
     client_replica_broadcast_chan_receiver: Vec<Receiver<Request>>,
-    replica_all_clients_mpsc_chan_senders: Vec<Sender<u8>>,
+    replica_all_clients_mpsc_chan_senders: Vec<Sender<Response>>,
     replica_leader_broadcast_chan_sender: BroadcastSender<u8>,
-    leader_replica_broadcast_chan_receiver: Vec<Receiver<u8>>,
+    leader_replica_broadcast_chan_receiver: Vec<Receiver<Decision>>,
     control_chan_receiver: Receiver<ControlSignal>,
 ) -> Context {
     let context = Context {
@@ -98,7 +99,7 @@ pub fn new(
         state: 0,
         slot_in: 1u8,
         slot_out: 1u8,
-        requests: Vec::new(),
+        requests: VecDeque::new(),
         proposals: HashMap::new(),
         decisions: HashMap::new()
     };
@@ -130,6 +131,10 @@ impl Context {
                                 Err(TryRecvError::Empty) => {
                                     if self.slot_in <= num_msgs {
                                         self.processing_broadcast_message_from_client();
+
+                                        // uncomment them later
+                                        // self.processing_decision_message_from_leader();
+                                        // self.propose();
                                     } else {
                                         println!("Replica {} Going into paused state", self.id);
                                         self.operating_state = OperatingState::Paused;
@@ -164,6 +169,9 @@ impl Context {
                 // received a new message from client
                 Ok(message) => {
                     println!("The received message at replica {} is {:#?}", self.id, message);
+                    // push into the requests 
+                    self.requests.push_back(message.clone().get_command());
+                    // this is a dummy thing -> have to be removed later
                     self.messages_from_client.push_back(message.get_command().get_command_id());
                 }
 
@@ -171,14 +179,122 @@ impl Context {
             }
         }
 
+
         // send broadcast messages to leaders only if there is message from client
+        // this has to be removed later,  dummy function
         if self.messages_from_client.is_empty() == false {
             self.replica_leader_broadcast_chan_sender
                 .send(self.messages_from_client.pop_front().unwrap());
-            // go into paused mode only after sending all stipulated messages
             self.slot_in += 1;
         }
     }
+
+
+
+    fn processing_decision_message_from_leader(&mut self) {
+        // process the decision messages received from the leader
+        for handle in &self.leader_replica_broadcast_chan_receiver {
+            match handle.try_recv() {
+                Ok(message) => {
+                    let (command, slot) = message.get_details();
+                    self.decisions.insert(slot, command);
+
+                    while self.decisions.contains_key(&self.slot_out) == true {
+                        let command_prime = self.decisions.get(&self.slot_out).unwrap().clone();
+                        if self.proposals.contains_key(&self.slot_out) == true {
+                            // removed from proposals
+                            let command_prime_prime = self.proposals.remove(&self.slot_out).unwrap();
+                            if command_prime_prime != command_prime {
+                                self.requests.push_back(command_prime_prime);
+                            }
+                        }
+                        let state = self.perform(command_prime);
+                        // slot_out increment outside because of error with mutable and immutable
+                        // we will come back to it later
+                        self.slot_out += 1;
+                    }
+                }
+
+                _ => {}
+            }
+
+
+        }
+    }
+
+
+
+    // for checking whether a command is in the decision
+    // I think we can do better
+    fn decision_contains_command(&self, command: Command) -> bool {
+        for slot in self.decisions.keys() {
+            if (self.decisions.get(slot).unwrap().clone() == command) && (slot.clone() < self.slot_out) {
+                return true;
+            } 
+        }
+        return false;
+    }
+
+
+    fn perform(&self, command: Command)-> u32 {
+        // inefficient implementation - need refactoring
+
+        let mut next = 0u32;
+        let mut result = 0u32;  
+
+        // skipping the true case as it only involves slot_out increment only
+        // increment done outside
+        if self.decision_contains_command(command.clone()) == false {
+            // getting updated state
+            // state and result same for our case -> bit unclear
+            match command.get_operation() {
+                Operation::Add(x) => {
+                    next = self.state.clone() + x;
+                    result = self.state.clone() + x;
+                }
+
+                Operation::Subtract(y) => {
+                    next = self.state.clone() - y;
+                    result = self.state.clone() - y;
+
+                }
+
+                Operation::Multiply(z) => {
+                    next = self.state.clone() * z;
+                    result = self.state.clone() * z;
+                }
+
+                _ => {}
+            }
+        }
+
+        // send response to the client
+        self.replica_all_clients_mpsc_chan_senders[command.get_client_id() as usize]
+            .send(Response::create(command.get_command_id(), result));
+
+        next
+
+
+    }
+
+   
+
+    fn propose(&mut self) {
+        while self.requests.is_empty() == true {
+            // skipped first if as there is no reconfig operation
+            if self.decisions.contains_key(&self.slot_in) == false {
+                let command = self.requests.pop_front().unwrap();
+                self.proposals.insert(self.slot_in.clone(), command);
+                // uncomment the following line later
+                // broadcast to leaders
+                //self.replica_leader_broadcast_chan_sender.send(Propose::create(slot, command));
+            }
+            self.slot_in += 1;
+        }
+    }
+
+
+
 
     fn handle_control_signal(&mut self, signal: ControlSignal) {
         // change the operating state

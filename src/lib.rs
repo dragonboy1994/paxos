@@ -10,7 +10,7 @@ mod utils;
 //use crate::replica;
 //use crate::leader;
 use crate::broadcast_channel::BroadcastSender;
-use crate::utils::{Operation, Command, Request};
+use crate::utils::{Operation, Command, Request, Decision, Response};
 
 
 use crossbeam::channel::{unbounded, Receiver, Sender};
@@ -86,7 +86,7 @@ impl SystemHandles {
 
         // vector for collecting all the sender handles of the mpsc channels from replica to all clients
         // the sender handles of this channel will be cloned to all the replicas
-        let mut replica_all_clients_mpsc_chan_senders: Vec<Sender<u8>> = Vec::new();
+        let mut replica_all_clients_mpsc_chan_senders: Vec<Sender<Response>> = Vec::new();
 
         // vector for collecting all the sender handles of the mpsc channels from acceptors to all leaders
         // the sender handles of this channel will be cloned to all the replicas
@@ -95,10 +95,10 @@ impl SystemHandles {
 
 
         // hashmap for collecting all broadcast channel sender handles for leaders while iterating over leaders
-        let mut hashmap_leader_replica_broadcast_chan_senders: HashMap<usize, BroadcastSender<u8>> =
+        let mut hashmap_leader_replica_broadcast_chan_senders: HashMap<usize, BroadcastSender<Decision>> =
             HashMap::new();
         // hashmap for collecting all broadcast channel receiver handles for replicas while iterating over leaders
-        let mut hashmap_leader_replica_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<u8>>> =
+        let mut hashmap_leader_replica_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<Decision>>> =
             HashMap::new();
 
 
@@ -111,7 +111,7 @@ impl SystemHandles {
         for leader_id in 0..leader_count {
             // get the broadcasts channel from the leader to replicas
             let (leader_replica_broadcast_chan_sender, leader_replica_broadcast_chan_receivers) =
-                broadcast_channel::construct::<u8>(replica_count.clone() as u8);
+                broadcast_channel::construct::<Decision>(replica_count.clone() as u8);
 
             // collect the sender handles for the leaders
             hashmap_leader_replica_broadcast_chan_senders
@@ -193,7 +193,7 @@ impl SystemHandles {
             }
 
             // collect the receiver handles of the broadcast channels from all the leaders
-            let mut leader_replica_broadcast_chan_receivers: Vec<Receiver<u8>> = Vec::new();
+            let mut leader_replica_broadcast_chan_receivers: Vec<Receiver<Decision>> = Vec::new();
             for leader_id in 0..leader_count {
                 let mut hashmap_entry_leader_id = hashmap_leader_replica_broadcast_chan_receivers
                     .remove(&leader_id)

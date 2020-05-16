@@ -1,16 +1,15 @@
 use std::cmp::Ordering;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum Operation {
     Null,
-    Add(f64),
-    Subtract(f64),
-    Multiply(f64),
-    Divide(f64),
+    Add(u32),
+    Subtract(u32),
+    Multiply(u32),
 }
 
 // the structure of command that is sent by clients to the replicas
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Command {
     client_id: u8,
     command_id: u8,
@@ -41,16 +40,17 @@ pub struct Request {
 // sent by replicas to clients
 pub struct Response {
     command_id: u8,
-    result: f64,
+    result: u32,
 }
 
 // sent by replicas to the leaders
 pub struct Propose {
-    slot_in: u8,
+    slot: u8,
     command: Command,
 }
 
 // sent by the commander in leaders to the replicas
+#[derive(Debug, Clone, Hash)]
 pub struct Decision {
     slot: u8,
     command: Command,
@@ -111,6 +111,15 @@ impl Command {
     pub fn get_command_id(&self) -> u8 {
         self.command_id.clone()
     }
+
+    pub fn get_operation(&self) -> Operation {
+        self.operation.clone()
+    }
+    
+    pub fn get_client_id(&self) -> u8 {
+        self.client_id.clone()
+    }
+
 }
 
 impl Request {
@@ -118,10 +127,36 @@ impl Request {
         Request{ command }
     }
 
-    pub fn get_command(self) -> Command {
-        self.command
+    pub fn get_command(&self) -> Command {
+        self.command.clone()
+    }
+
+}
+
+
+
+impl Response{
+    pub fn create(command_id: u8, result: u32) -> Response {
+        Response{ command_id, result }
     }
 }
+
+
+impl Propose{
+    pub fn create(slot: u8, command: Command) -> Propose {
+        Propose{ slot, command }
+    }
+}
+
+
+impl Decision {
+    pub fn get_details(self) -> (Command, u8) {
+        (self.command, self.slot)
+    }
+}
+
+
+
 
 
 impl Ord for Ballot {

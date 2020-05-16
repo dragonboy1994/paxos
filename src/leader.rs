@@ -4,6 +4,8 @@ use std::thread;
 use std::time::Duration;
 
 use crate::broadcast_channel::BroadcastSender;
+use crate::utils::{Operation, Command, Decision};
+
 
 enum OperatingState {
     Paused,
@@ -33,7 +35,7 @@ pub struct Context {
 
     // handle to send broadcast messages to replicas
     // this will go to the commander
-    leader_replica_broadcast_chan_sender: BroadcastSender<u8>,
+    leader_replica_broadcast_chan_sender: BroadcastSender<Decision>,
 
     // handle to send broadcast messages to acceptors
     leader_acceptor_broadcast_chan_sender: BroadcastSender<u8>,
@@ -54,7 +56,7 @@ pub struct Context {
 pub fn new(
     id: u8,
     replica_leader_broadcast_chan_receiver: Vec<Receiver<u8>>,
-    leader_replica_broadcast_chan_sender: BroadcastSender<u8>,
+    leader_replica_broadcast_chan_sender: BroadcastSender<Decision>,
     leader_acceptor_broadcast_chan_sender: BroadcastSender<u8>,
     acceptor_leader_for_commander_mpsc_chan_receiver: Receiver<u8>,
     acceptor_leader_for_scout_mpsc_chan_receiver: Receiver<u8>,
@@ -157,7 +159,7 @@ impl Context {
 
 
 
-    
+
     fn handle_control_signal(&mut self, signal: ControlSignal) {
         match signal {
             ControlSignal::Paused => {

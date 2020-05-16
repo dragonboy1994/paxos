@@ -3,7 +3,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::broadcast_channel::BroadcastSender;
-use crate::utils::{Operation, Command, Request};
+use crate::utils::{Operation, Command, Request, Response};
 
 enum OperatingState {
     Paused,
@@ -26,7 +26,7 @@ pub struct Context {
     client_replica_broadcast_chan_sender: BroadcastSender<Request>,
 
     // handle to the receiver handle for mpsc channel from all replicas
-    replica_client_mpsc_chan_receiver: Receiver<u8>,
+    replica_client_mpsc_chan_receiver: Receiver<Response>,
 
     // handle to receive control signals
     control_chan_receiver: Receiver<ControlSignal>,
@@ -38,7 +38,7 @@ pub struct Context {
 pub fn new(
     id: u8,
     client_replica_broadcast_chan_sender: BroadcastSender<Request>,
-    replica_client_mpsc_chan_receiver: Receiver<u8>,
+    replica_client_mpsc_chan_receiver: Receiver<Response>,
     control_chan_receiver: Receiver<ControlSignal>,
 ) -> Context {
     let context = Context {
@@ -106,11 +106,10 @@ impl Context {
         let mut operation = Operation::Null;
 
         match num%4 {
-            0 => { operation = Operation::Add(1f64); }
-            1 => { operation = Operation::Subtract(1f64); }
-            2 => { operation = Operation::Multiply(2f64); }
-            3 => { operation = Operation::Divide(2f64); }
-            _ => {println!("This is incomplete!!!! Need makeover");}
+            0 => { operation = Operation::Add(1u32); }
+            1 => { operation = Operation::Subtract(1u32); }
+            2 => { operation = Operation::Multiply(2u32); }
+            _ => { operation = Operation::Add(1u32); }
         }
 
         let command = Command::create( self.id.clone(), num, operation);
