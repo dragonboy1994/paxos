@@ -2,9 +2,10 @@ use crossbeam::channel::{Receiver, TryRecvError};
 use std::collections::VecDeque;
 use std::thread;
 use std::time::Duration;
+use std::collections::HashMap;
 
 use crate::broadcast_channel::BroadcastSender;
-use crate::utils::{Operation, Command, Decision, P1a};
+use crate::utils::{Operation, Command, Decision, Ballot, P1a, P1b, P2a, P2b};
 
 
 enum OperatingState {
@@ -30,6 +31,15 @@ pub struct Context {
     // add details later
     slot_in: u8,
 
+    // ballot num 
+    ballot_num: Ballot, 
+
+    // boolean flag
+    active: bool,
+
+    // a map of slot numbers to proposed commands
+    proposals: HashMap<u8, Command>,
+
     // handle for the broadcast channel between all replicas and the leader
     replica_leader_broadcast_chan_receiver: Vec<Receiver<u8>>,
 
@@ -43,11 +53,14 @@ pub struct Context {
     // handle to send broadcast messages from scouts to acceptors
     scout_acceptor_broadcast_chan_sender: BroadcastSender<P1a>,
 
+    // handle to send broadcast messages from commanders to acceptors
+    commander_acceptor_broadcast_chan_sender: BroadcastSender<P2a>,
+
     // receiving handle for the mpsc channel to commander from all the acceptors
-    acceptor_leader_for_commander_mpsc_chan_receiver: Receiver<u8>,
+    acceptor_leader_for_commander_mpsc_chan_receiver: Receiver<P2b>,
 
     // receiving handle for the mpsc channel to scout from all the acceptors
-    acceptor_leader_for_scout_mpsc_chan_receiver: Receiver<u8>,
+    acceptor_leader_for_scout_mpsc_chan_receiver: Receiver<P1b>,
 
     // handle for controlling the leader operating state
     control_chan_receiver: Receiver<ControlSignal>,
@@ -62,18 +75,23 @@ pub fn new(
     leader_replica_broadcast_chan_sender: BroadcastSender<Decision>,
     leader_acceptor_broadcast_chan_sender: BroadcastSender<u8>,
     scout_acceptor_broadcast_chan_sender: BroadcastSender<P1a>,
-    acceptor_leader_for_commander_mpsc_chan_receiver: Receiver<u8>,
-    acceptor_leader_for_scout_mpsc_chan_receiver: Receiver<u8>,
+    commander_acceptor_broadcast_chan_sender: BroadcastSender<P2a>,
+    acceptor_leader_for_commander_mpsc_chan_receiver: Receiver<P2b>,
+    acceptor_leader_for_scout_mpsc_chan_receiver: Receiver<P1b>,
     control_chan_receiver: Receiver<ControlSignal>,
 ) -> Context {
     let context = Context {
         id,
         messages_from_replica: VecDeque::new(),
         slot_in: 1u8,
+        ballot_num: Ballot::create(id),
+        active: false,
+        proposals: HashMap::new(),
         replica_leader_broadcast_chan_receiver,
         leader_replica_broadcast_chan_sender,
         leader_acceptor_broadcast_chan_sender,
         scout_acceptor_broadcast_chan_sender,
+        commander_acceptor_broadcast_chan_sender,
         acceptor_leader_for_commander_mpsc_chan_receiver,
         acceptor_leader_for_scout_mpsc_chan_receiver,
         control_chan_receiver,

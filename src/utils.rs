@@ -80,12 +80,12 @@ pub struct P1a {
 pub struct P1b {
     acceptor_id: u8,
     ballot: Ballot,
-
     // set of pvalues accepted by the acceptor
     accepted: Vec<Pvalue>,
 }
 
 // sent by commander to the acceptor
+#[derive(Debug, Clone)]
 pub struct P2a {
     leader_id: u8,
     pvalue: Pvalue,
@@ -125,6 +125,14 @@ impl Command {
 
 }
 
+
+impl Pvalue {
+    pub fn get_ballot_num(&self) -> Ballot {
+        self.ballot.clone()
+    }
+}
+
+
 impl Request {
     pub fn create(command: Command) -> Request {
         Request{ command }
@@ -159,7 +167,53 @@ impl Decision {
 }
 
 
+impl P1a {
+    pub fn get_ballot_num(&self) -> Ballot {
+        self.ballot.clone()
+    }
 
+    pub fn get_leader_id(&self) -> u8 {
+        self.leader_id.clone()
+    }
+}
+
+
+
+impl P1b {
+    pub fn create(acceptor_id: u8, ballot: Ballot, accepted: Vec<Pvalue>) ->P1b {
+        P1b{ acceptor_id, ballot, accepted }
+    }
+}
+
+
+impl P2a {
+    pub fn get_pvalue(&self) -> Pvalue {
+        self.pvalue.clone()
+    }
+
+    pub fn get_ballot_num(&self) -> Ballot {
+        self.pvalue.get_ballot_num()
+    }
+
+    pub fn get_leader_id(&self) -> u8 {
+        self.leader_id.clone()
+    }
+}
+
+
+impl P2b {
+    pub fn create(acceptor_id: u8, ballot: Ballot) -> P2b {
+        P2b{ acceptor_id, ballot }
+    }
+}
+
+
+impl Ballot {
+    // for creating the initial ballot
+    pub fn create(leader_id: u8) -> Ballot {
+        Ballot{ count: 0u16, leader_id}
+    }
+}
 
 
 impl Ord for Ballot {
