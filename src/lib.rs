@@ -291,6 +291,7 @@ impl SystemHandles {
             // build the leader
             let leader_context = leader::new(
                 leader_id as u8,
+                acceptor_count as u8,
                 replica_leader_broadcast_chan_receivers,
                 hashmap_leader_replica_broadcast_chan_senders
                     .remove(&leader_id)

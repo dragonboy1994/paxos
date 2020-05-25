@@ -1,4 +1,4 @@
-use crossbeam::channel::{Sender, Receiver, TryRecvError};
+use crossbeam::channel::{unbounded, Sender, Receiver, TryRecvError};
 use std::collections::VecDeque;
 use std::thread;
 use std::time::Duration;
@@ -6,7 +6,8 @@ use std::collections::HashMap;
 
 use crate::broadcast_channel::BroadcastSender;
 use crate::utils::{Operation, Command, Decision, Ballot, P1a, P1b, P2a, P2b, Adopted, Preempted, ScoutMessage};
-
+use crate::scout;
+use crate::commander;
 
 enum OperatingState {
     Paused,
@@ -27,6 +28,15 @@ pub enum ControlSignal {
 pub struct Context {
     // ID of the leader
     id: u8,
+
+    // maximum scout ID's assigned till now
+    scout_id: u16,
+
+    // maximum commander ID's assigned till now
+    commander_id: u16,
+
+    // number of acceptors
+    num_acceptors: u8,
 
     // all messages received in broadcast from replica
     messages_from_replica: VecDeque<u8>,
@@ -77,18 +87,24 @@ pub struct Context {
 
     // receive handles of the channels from the scouts to the leader
     // the channel will  be shared between all the scouts
-    all_scouts_leader_receiver: Vec<Receiver<ScoutMessage>>,
+    all_scouts_leader_receiver: Receiver<ScoutMessage>,
+    // clone of this sender handle will be shared with all scouts
+    all_scouts_leader_sender: Sender<ScoutMessage>,
 
     // sending handles of the channels from the leader to the commanders
     leader_to_all_commanders_sender: Vec<Sender<P2b>>,
 
     // receive handles of the channels from the commanders to the leader
     // the channel will  be shared between all the commanders
-    all_commanders_leader_receiver: Vec<Receiver<Preempted>>,
+    all_commanders_leader_receiver: Receiver<Preempted>,
+    // clone of this sender handle will be shared with all commanders
+    all_commanders_leader_sender: Sender<Preempted>,
+
 }
 
 pub fn new(
     id: u8,
+    num_acceptors: u8,
     replica_leader_broadcast_chan_receiver: Vec<Receiver<u8>>,
     leader_replica_broadcast_chan_sender: BroadcastSender<Decision>,
     leader_acceptor_broadcast_chan_sender: BroadcastSender<u8>,
@@ -98,8 +114,14 @@ pub fn new(
     acceptor_leader_for_scout_mpsc_chan_receiver: Receiver<P1b>,
     control_chan_receiver: Receiver<ControlSignal>,
 ) -> Context {
+    let (all_scouts_leader_sender, all_scouts_leader_receiver) = unbounded();
+    let (all_commanders_leader_sender, all_commanders_leader_receiver) = unbounded();
+
     let context = Context {
         id,
+        num_acceptors,
+        scout_id: 0u16,
+        commander_id: 0u16,
         messages_from_replica: VecDeque::new(),
         slot_in: 1u8,
         ballot_num: Ballot::create(id),
@@ -116,8 +138,10 @@ pub fn new(
         operating_state: OperatingState::Paused,
         leader_to_all_scouts_sender: Vec::new(),
         leader_to_all_commanders_sender: Vec::new(),
-        all_scouts_leader_receiver: Vec::new(),
-        all_commanders_leader_receiver: Vec::new(),
+        all_scouts_leader_receiver,
+        all_scouts_leader_sender,
+        all_commanders_leader_receiver,
+        all_commanders_leader_sender,
     };
 
     context
@@ -176,6 +200,8 @@ impl Context {
 
 
 
+
+    // has to eventually remove this part
     // processing of the received messages
     fn processing_broadcast_message_from_replica(&mut self) {
         // iterate over the receiver handles from all the replicas to scan for any possible messages
@@ -202,21 +228,17 @@ impl Context {
     }
 
 
+
+
+
     fn processing_messages() {
+        
         unimplemented!()
+
     }
 
 
-    // the loop for spawing sout thread
-    fn scout() {
-        unimplemented!()
-    }
 
-
-    fn commander() {
-        unimplemented!()
-    }
-    
 
 
     fn handle_control_signal(&mut self, signal: ControlSignal) {
@@ -228,6 +250,20 @@ impl Context {
             ControlSignal::Run(num_msgs) => {
                 println!("Leader {} activated", self.id);
                 self.operating_state = OperatingState::Run(num_msgs);
+
+                // first spawning of the scout
+                let (leader_scout_sender, leader_scout_receiver) = unbounded();
+                let scout_context = scout::new(
+                                    self.scout_id.clone(),
+                                    self.id.clone(),
+                                    self.scout_acceptor_broadcast_chan_sender.clone(),
+                                    leader_scout_receiver,
+                                    self.all_scouts_leader_sender.clone(),
+                                    self.ballot_num.clone(),
+                                );
+                scout_context.start(self.num_acceptors.clone());
+                self.scout_id  = self.scout_id + 1u16;
+                self.leader_to_all_scouts_sender.push(leader_scout_sender);
             }
 
             ControlSignal::Exit => {

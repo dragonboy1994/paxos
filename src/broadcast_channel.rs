@@ -1,9 +1,11 @@
 use crossbeam::channel::{unbounded, Receiver, Sender};
 
 // all sender handles of the broadcast channel
+#[derive(Clone)]
 pub struct BroadcastSender<T>(Vec<Sender<T>>);
 
 // all receiver handles of the broadcast channel
+#[derive(Clone)]
 pub struct BroadcastReceivers<T>(Vec<Receiver<T>>);
 
 impl<T: std::clone::Clone> BroadcastSender<T> {
