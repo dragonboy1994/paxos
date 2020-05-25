@@ -1,11 +1,11 @@
-use crossbeam::channel::{Receiver, TryRecvError};
+use crossbeam::channel::{Sender, Receiver, TryRecvError};
 use std::collections::VecDeque;
 use std::thread;
 use std::time::Duration;
 use std::collections::HashMap;
 
 use crate::broadcast_channel::BroadcastSender;
-use crate::utils::{Operation, Command, Decision, Ballot, P1a, P1b, P2a, P2b};
+use crate::utils::{Operation, Command, Decision, Ballot, P1a, P1b, P2a, P2b, Adopted, Preempted, ScoutMessage};
 
 
 enum OperatingState {
@@ -20,6 +20,9 @@ pub enum ControlSignal {
     Run(u8),
     Exit,
 }
+
+
+
 
 pub struct Context {
     // ID of the leader
@@ -67,6 +70,21 @@ pub struct Context {
 
     // operating state of the leader
     operating_state: OperatingState,
+
+    // sending handles of the channels from the leader to the scouts
+    // for sending P1b
+    leader_to_all_scouts_sender: Vec<Sender<P1b>>,
+
+    // receive handles of the channels from the scouts to the leader
+    // the channel will  be shared between all the scouts
+    all_scouts_leader_receiver: Vec<Receiver<ScoutMessage>>,
+
+    // sending handles of the channels from the leader to the commanders
+    leader_to_all_commanders_sender: Vec<Sender<P2b>>,
+
+    // receive handles of the channels from the commanders to the leader
+    // the channel will  be shared between all the commanders
+    all_commanders_leader_receiver: Vec<Receiver<Preempted>>,
 }
 
 pub fn new(
@@ -96,6 +114,10 @@ pub fn new(
         acceptor_leader_for_scout_mpsc_chan_receiver,
         control_chan_receiver,
         operating_state: OperatingState::Paused,
+        leader_to_all_scouts_sender: Vec::new(),
+        leader_to_all_commanders_sender: Vec::new(),
+        all_scouts_leader_receiver: Vec::new(),
+        all_commanders_leader_receiver: Vec::new(),
     };
 
     context
@@ -165,7 +187,7 @@ impl Context {
                     println!("The received message at leader {} is {}", self.id, message);
                     self.messages_from_replica.push_back(message);
                 }
-
+                
                 _ => {}
             }
         }
@@ -180,7 +202,21 @@ impl Context {
     }
 
 
+    fn processing_messages() {
+        unimplemented!()
+    }
 
+
+    // the loop for spawing sout thread
+    fn scout() {
+        unimplemented!()
+    }
+
+
+    fn commander() {
+        unimplemented!()
+    }
+    
 
 
     fn handle_control_signal(&mut self, signal: ControlSignal) {

@@ -6,6 +6,8 @@ mod client;
 mod leader;
 mod replica;
 mod utils;
+mod scout;
+mod commander;
 
 //use crate::replica;
 //use crate::leader;

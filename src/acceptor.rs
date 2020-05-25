@@ -165,7 +165,12 @@ impl Context {
 
                     // send the P1b message to the scout
                     self.acceptor_leader_for_scout_mpsc_chan_senders[message.get_leader_id() as usize]
-                    .send( P1b::create(self.id.clone(),self.ballot_num.clone().unwrap(), self.accepted.clone()));
+                    .send( P1b::create(
+                                        self.id.clone(),
+                                        self.ballot_num.clone().unwrap(), 
+                                        self.accepted.clone(), 
+                                        message.get_scout_id(),
+                                    ));
                 }
                 _ => {}
             }
@@ -184,7 +189,7 @@ impl Context {
 
                     // send the P2b message to the commander
                     self.acceptor_leader_for_commander_mpsc_chan_senders[message.get_leader_id() as usize]
-                    .send(P2b::create(self.id.clone(), self.ballot_num.clone().unwrap()));
+                    .send(P2b::create(self.id.clone(), self.ballot_num.clone().unwrap(), message.get_commander_id()));
                 }
                 _ => {}
             }
