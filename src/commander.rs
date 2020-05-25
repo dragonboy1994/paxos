@@ -88,6 +88,7 @@ impl Context{
                     self.commander_id.clone(),
                 )
             );
+        // println!("Commander of the leader {} has broadcast P2a message", self.leader_id);
 
         
         // thread spawning

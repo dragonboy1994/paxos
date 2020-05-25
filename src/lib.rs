@@ -434,7 +434,7 @@ impl SystemHandles {
                 leader_count * replica_count * client_count * num_broadcasts,
             ));
 
-        thread::sleep(Duration::from_secs(5));
+        thread::sleep(Duration::from_secs(10));
         println!(
             "Exit signal sent; hopefully, clients, leaders, replicas, acceptors in paused mode"
         );
@@ -446,7 +446,7 @@ impl SystemHandles {
             .send(leader::ControlSignal::Exit);
         self.acceptor_control_chan_sender
             .send(acceptor::ControlSignal::Exit);
-        thread::sleep(Duration::from_secs(1));
+        thread::sleep(Duration::from_secs(10));
     }
 }
 

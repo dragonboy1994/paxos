@@ -67,6 +67,8 @@ impl Context {
         // broadcast the P1a message to all acceptors
         self.scout_acceptor_broadcast_chan_sender
             .send(P1a::create(self.leader_id.clone(), self.ballot_num.clone(), self.scout_id.clone()));
+        // println!("Scout of the leader {} has broadcast P1a message", self.leader_id);
+
 
         // thread spawning
         thread::Builder::new()

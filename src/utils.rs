@@ -3,9 +3,9 @@ use std::cmp::Ordering;
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum Operation {
     Null,
-    Add(u32),
-    Subtract(u32),
-    Multiply(u32),
+    Add(i32),
+    Subtract(i32),
+    Multiply(i32),
 }
 
 
@@ -167,11 +167,11 @@ impl Request {
 // sent by replicas to clients
 pub struct Response {
     command_id: u8,
-    result: u32,
+    result: i32,
 }
 
 impl Response{
-    pub fn create(command_id: u8, result: u32) -> Response {
+    pub fn create(command_id: u8, result: i32) -> Response {
         Response{ command_id, result }
     }
 }

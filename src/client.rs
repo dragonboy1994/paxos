@@ -106,16 +106,16 @@ impl Context {
         let mut operation = Operation::Null;
 
         match num%4 {
-            0 => { operation = Operation::Add(1u32); }
-            1 => { operation = Operation::Subtract(1u32); }
-            2 => { operation = Operation::Multiply(2u32); }
-            _ => { operation = Operation::Add(1u32); }
+            0 => { operation = Operation::Add(1i32); }
+            1 => { operation = Operation::Subtract(1i32); }
+            2 => { operation = Operation::Multiply(2i32); }
+            _ => { operation = Operation::Add(1i32); }
         }
 
         let command = Command::create( self.id.clone(), num, operation);
-        println!("Command is {:#?}", command);
+        // println!("Command is {:#?}", command);
 
-        println!("Client {} has broadcast a command", self.id);
+        // println!("Client {} has broadcast a Request", self.id);
         self.client_replica_broadcast_chan_sender
             .send(Request::create(command));
     }

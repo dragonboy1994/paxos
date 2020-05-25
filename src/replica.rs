@@ -57,7 +57,7 @@ pub struct Context {
     // for consensus mechanism
     // all taken from the PMMC paper
     // application state
-    state: u32, 
+    state: i32, 
 
     // index of the next slot in replica has not proposed any command yet
     slot_in: u8,
@@ -96,7 +96,7 @@ pub fn new(
         leader_replica_broadcast_chan_receiver,
         control_chan_receiver,
         operating_state: OperatingState::Paused,
-        state: 0,
+        state: 0i32,
         slot_in: 1u8,
         slot_out: 1u8,
         requests: VecDeque::new(),
@@ -129,7 +129,7 @@ impl Context {
                                     self.handle_control_signal(signal);
                                 }
                                 Err(TryRecvError::Empty) => {
-                                    if self.slot_in <= num_msgs {
+                                    if self.slot_out <= num_msgs {
                                         self.processing_broadcast_message_from_client();
 
                                         // uncomment them later
@@ -137,6 +137,8 @@ impl Context {
                                         self.propose();
                                     } else {
                                         println!("Replica {} Going into paused state", self.id);
+                                        println!("Decision list at replica {} is {:#?}", self.id, self.decisions);
+                                        println!("The state at replica {} is {}", self.id, self.state);
                                         self.operating_state = OperatingState::Paused;
                                     }
                                 }
@@ -168,7 +170,7 @@ impl Context {
             match handle.try_recv() {
                 // received a new message from client
                 Ok(message) => {
-                    println!("The received message at replica {} is {:#?}", self.id, message);
+                    // println!("The received message at replica {} is {:#?}", self.id, message);
                     // push into the requests 
                     self.requests.push_back(message.clone().get_command());
                 }
@@ -188,6 +190,9 @@ impl Context {
                 Ok(message) => {
                     let (command, slot) = message.get_details();
                     self.decisions.insert(slot, command);
+                    // println!("Decision message inserted");
+                    
+
 
                     while self.decisions.contains_key(&self.slot_out) == true {
                         let command_prime = self.decisions.get(&self.slot_out).unwrap().clone();
@@ -198,7 +203,7 @@ impl Context {
                                 self.requests.push_back(command_prime_prime);
                             }
                         }
-                        let state = self.perform(command_prime);
+                        self.state = self.perform(command_prime);
                         // slot_out increment outside because of error with mutable and immutable
                         // we will come back to it later
                         self.slot_out += 1;
@@ -226,10 +231,10 @@ impl Context {
     }
 
 
-    fn perform(&self, command: Command)-> u32 {
+    fn perform(&self, command: Command)-> i32 {
 
-        let mut next = 0u32;
-        let mut result = 0u32;  
+        let mut next = 0i32;
+        let mut result = 0i32;  
 
         // skipping the true case as it only involves slot_out increment only
         // increment done outside
@@ -258,6 +263,7 @@ impl Context {
         }
 
         // send response to the client
+        // println!("Replica {} has sent reponse", self.id);
         self.replica_all_clients_mpsc_chan_senders[command.get_client_id() as usize]
             .send(Response::create(command.get_command_id(), result));
 
@@ -277,6 +283,7 @@ impl Context {
                 self.proposals.insert(self.slot_in.clone(), command.clone());
                 // uncomment the following line later
                 // broadcast to leaders
+                // println!("Replica {} has broadcast propose message", self.id);
                 self.replica_leader_broadcast_chan_sender.send(Propose::create(self.slot_in.clone(), command));
             }
             self.slot_in += 1;

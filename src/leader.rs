@@ -171,7 +171,7 @@ impl Context {
                                 // empty control channel, feel free to continue interacting with the replicas
                                 Err(TryRecvError::Empty) => {
                                     if self.slot_in <= num_msgs {
-                                        self.processing_broadcast_message_from_replica();
+                                        // self.processing_broadcast_message_from_replica();
                                         self.relaying_messages();
                                         self.processing_messages();
                                     } else {
@@ -202,7 +202,7 @@ impl Context {
 
 
 
-
+    /*
     // has to eventually remove this part
     // processing of the received messages
     fn processing_broadcast_message_from_replica(&mut self) {
@@ -228,7 +228,7 @@ impl Context {
             self.slot_in += 1;
         }
     }
-
+    */
 
 
 
@@ -275,6 +275,7 @@ impl Context {
         for handle in &self.replica_leader_broadcast_chan_receiver {
             match handle.try_recv() {
                 Ok(message) => {
+                    // println!("Leader {} has received propose message", self.id);
                     if self.proposals.contains_key(&message.get_slot()) == false {
                         self.proposals.insert(message.get_slot(), message.get_command());
                         if self.active == true {

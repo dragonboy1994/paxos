@@ -105,7 +105,9 @@ impl Context {
                                 // empty control channel, feel free to continue interacting with the replicas
                                 Err(TryRecvError::Empty) => {
                                     if self.messages.len() < num_msgs as usize {
-                                        self.message_processing();
+                                        // self.message_processing();
+                                        self.processing_p1a_message_from_scout();
+                                        self.processing_p2a_message_from_commander();
                                     } else {
                                         println!("Acceptor {} going into paused state", self.id);
                                         self.operating_state = OperatingState::Paused;
@@ -129,6 +131,7 @@ impl Context {
             .unwrap();
     }
 
+    /*
     // processing of the received messages
     fn message_processing(&mut self) {
         // iterate over the receiver handles from all the leaders to scan for any possible messages
@@ -147,7 +150,7 @@ impl Context {
             }
         }
     }
-
+    */
 
 
 
@@ -157,7 +160,7 @@ impl Context {
             match handle.try_recv() {
                 Ok(message) => {
                     // ballot check
-                    // do something for None.....................
+                    // println!("Acceptor {} has received P1a", self.id);
                     match self.ballot_num.clone() {
                         Some(b) => {
                             if message.get_ballot_num() > b {
@@ -177,6 +180,7 @@ impl Context {
                                         self.accepted.clone(), 
                                         message.get_scout_id(),
                                     ));
+                    // println!("Acceptor {} has sent P1b", self.id);
                 }
                 _ => {}
             }
@@ -188,6 +192,7 @@ impl Context {
         for handle in &self.commander_acceptor_broadcast_chan_receiver {
             match handle.try_recv() {
                 Ok(message) => {
+                    // println!("Acceptor {} has received P2a", self.id);
                     if message.get_ballot_num() == self.ballot_num.clone().unwrap() {
                         // inserting the pvalue
                         self.accepted.push(message.get_pvalue());
@@ -196,6 +201,7 @@ impl Context {
                     // send the P2b message to the commander
                     self.acceptor_leader_for_commander_mpsc_chan_senders[message.get_leader_id() as usize]
                     .send(P2b::create(self.id.clone(), self.ballot_num.clone().unwrap(), message.get_commander_id()));
+                    // println!("Acceptor {} has sent P2b", self.id);
                 }
                 _ => {}
             }
