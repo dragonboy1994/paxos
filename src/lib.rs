@@ -12,7 +12,7 @@ mod commander;
 //use crate::replica;
 //use crate::leader;
 use crate::broadcast_channel::BroadcastSender;
-use crate::utils::{Operation, Command, Request, Decision, Response, P1a, P1b, P2a, P2b};
+use crate::utils::{Operation, Command, Request, Decision, Response, Propose, P1a, P1b, P2a, P2b};
 
 
 use crossbeam::channel::{unbounded, Receiver, Sender};
@@ -76,7 +76,7 @@ impl SystemHandles {
         let mut hashmap_client_replica_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<Request>>> =
             HashMap::new();
         // hashmap for collecting all broadcast channel receiver handles for leaders while iterating over replicas
-        let mut hashmap_replica_leader_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<u8>>> =
+        let mut hashmap_replica_leader_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<Propose>>> =
             HashMap::new();
         // hashmap for collecting all broadcast channel receiver handles for acceptors while iterating over leaders
         let mut hashmap_leader_acceptor_broadcast_chan_receivers: HashMap<usize, Vec<Receiver<u8>>> = 
@@ -212,7 +212,7 @@ impl SystemHandles {
 
             // get the broadcast channel from curent replica to all leaders
             let (replica_leader_broadcast_chan_sender, replica_leader_broadcast_chan_receivers) =
-                broadcast_channel::construct::<u8>(leader_count.clone() as u8);
+                broadcast_channel::construct::<Propose>(leader_count.clone() as u8);
 
             // build the replica
             // do note that one clone of replica_all_clients_mpsc_chan_senders is left unassigned to any replica
@@ -249,7 +249,7 @@ impl SystemHandles {
         // iterate over each leader
         for leader_id in 0..leader_count {
             // collect the receiver handles of the broadcast channels from all the replicas
-            let mut replica_leader_broadcast_chan_receivers: Vec<Receiver<u8>> = Vec::new();
+            let mut replica_leader_broadcast_chan_receivers: Vec<Receiver<Propose>> = Vec::new();
 
             for replica_id in 0..replica_count {
                 // retrieving the entry corresponding to replica_id

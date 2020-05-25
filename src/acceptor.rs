@@ -157,6 +157,7 @@ impl Context {
             match handle.try_recv() {
                 Ok(message) => {
                     // ballot check
+                    // do something for None.....................
                     if let Some(b) = self.ballot_num.clone() {
                         if message.get_ballot_num() > b {
                             self.ballot_num = Some(message.get_ballot_num());

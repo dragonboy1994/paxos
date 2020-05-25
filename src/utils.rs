@@ -64,6 +64,12 @@ impl Ballot {
     pub fn create(leader_id: u8) -> Ballot {
         Ballot{ count: 0u16, leader_id}
     }
+
+    pub fn increment(&self, leader_id: u8) -> Ballot {
+        // increment by 1
+        Ballot{ count: self.count + 1u16, leader_id }
+    } 
+
 }
 
 
@@ -112,6 +118,14 @@ pub struct Pvalue {
 impl Pvalue {
     pub fn get_ballot_num(&self) -> Ballot {
         self.ballot.clone()
+    }
+
+    pub fn get_slot(&self) -> u8 {
+        self.slot.clone()
+    }
+
+    pub fn get_command(&self) -> Command {
+        self.command.clone()
     }
 
     pub fn create(
@@ -168,6 +182,7 @@ impl Response{
 
 
 // sent by replicas to the leaders
+#[derive(Debug, Clone)]
 pub struct Propose {
     slot: u8,
     command: Command,
@@ -176,6 +191,14 @@ pub struct Propose {
 impl Propose{
     pub fn create(slot: u8, command: Command) -> Propose {
         Propose{ slot, command }
+    }
+
+    pub fn get_slot(&self) -> u8 {
+        self.slot.clone()
+    }
+
+    pub fn get_command(&self) -> Command {
+        self.command.clone()
     }
 }
 
@@ -216,6 +239,16 @@ impl Adopted {
     pub fn create(ballot: Ballot, pvalues: Vec<Pvalue>) -> Adopted {
         Adopted{ ballot, pvalues }
     }
+
+    pub fn get_pvalues(&self) -> Vec<Pvalue> {
+        self.pvalues.clone()
+    }
+
+
+    pub fn get_ballot(&self) -> Ballot {
+        self.ballot.clone()
+    }
+
 }
 
 
@@ -231,6 +264,11 @@ pub struct Preempted {
 impl Preempted {
     pub fn create(ballot: Ballot) -> Preempted {
         Preempted{ ballot }
+    }
+
+
+    pub fn get_ballot(&self) -> Ballot {
+        self.ballot.clone()
     }
 }
 
@@ -284,6 +322,7 @@ impl P1a {
 
 
 // sent by acceptor to the scout
+#[derive(Debug, Clone)]
 pub struct P1b {
     acceptor_id: u8,
     ballot: Ballot,
@@ -306,8 +345,8 @@ impl P1b {
         self.ballot.clone()
     }
 
-    pub fn get_scout_id(&self) -> u16 {
-        self.scout_id.clone()
+    pub fn get_scout_id(&self) -> usize {
+        self.scout_id.clone() as usize
     }
     
     pub fn get_pvalues(&self) -> Vec<Pvalue> {
@@ -365,6 +404,7 @@ impl P2a {
 
 
 // sent by the acceptor to the commander
+#[derive(Debug, Clone)]
 pub struct P2b {
     acceptor_id: u8,
     ballot: Ballot,
@@ -386,6 +426,10 @@ impl P2b {
 
     pub fn get_acceptor_id(&self) -> u8 {
         self.acceptor_id.clone()
+    }
+
+    pub fn get_commander_id(&self) -> usize {
+        self.commander_id.clone() as usize
     }
 
 }

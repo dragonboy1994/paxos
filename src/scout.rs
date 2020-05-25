@@ -64,7 +64,6 @@ pub fn new(
 
 impl Context {
     pub fn start(mut self, num_acceptors: u8) {
-        println!("Scout initiated - part 2");
         // broadcast the P1a message to all acceptors
         self.scout_acceptor_broadcast_chan_sender
             .send(P1a::create(self.leader_id.clone(), self.ballot_num.clone(), self.scout_id.clone()));

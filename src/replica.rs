@@ -41,7 +41,7 @@ pub struct Context {
     replica_all_clients_mpsc_chan_senders: Vec<Sender<Response>>,
 
     // handle to send broadcast messages to the leaders
-    replica_leader_broadcast_chan_sender: BroadcastSender<u8>,
+    replica_leader_broadcast_chan_sender: BroadcastSender<Propose>,
 
     // handle for the receiver side of broadcast channel between all leaders and the replica
     leader_replica_broadcast_chan_receiver: Vec<Receiver<Decision>>,
@@ -83,7 +83,7 @@ pub fn new(
     id: u8,
     client_replica_broadcast_chan_receiver: Vec<Receiver<Request>>,
     replica_all_clients_mpsc_chan_senders: Vec<Sender<Response>>,
-    replica_leader_broadcast_chan_sender: BroadcastSender<u8>,
+    replica_leader_broadcast_chan_sender: BroadcastSender<Propose>,
     leader_replica_broadcast_chan_receiver: Vec<Receiver<Decision>>,
     control_chan_receiver: Receiver<ControlSignal>,
 ) -> Context {
@@ -133,8 +133,8 @@ impl Context {
                                         self.processing_broadcast_message_from_client();
 
                                         // uncomment them later
-                                        // self.processing_decision_message_from_leader();
-                                        // self.propose();
+                                        self.processing_decision_message_from_leader();
+                                        self.propose();
                                     } else {
                                         println!("Replica {} Going into paused state", self.id);
                                         self.operating_state = OperatingState::Paused;
@@ -171,22 +171,12 @@ impl Context {
                     println!("The received message at replica {} is {:#?}", self.id, message);
                     // push into the requests 
                     self.requests.push_back(message.clone().get_command());
-                    // this is a dummy thing -> have to be removed later
-                    self.messages_from_client.push_back(message.get_command().get_command_id());
                 }
 
                 _ => {}
             }
         }
 
-
-        // send broadcast messages to leaders only if there is message from client
-        // this has to be removed later,  dummy function
-        if self.messages_from_client.is_empty() == false {
-            self.replica_leader_broadcast_chan_sender
-                .send(self.messages_from_client.pop_front().unwrap());
-            self.slot_in += 1;
-        }
     }
 
 
@@ -237,7 +227,6 @@ impl Context {
 
 
     fn perform(&self, command: Command)-> u32 {
-        // inefficient implementation - need refactoring
 
         let mut next = 0u32;
         let mut result = 0u32;  
@@ -280,14 +269,15 @@ impl Context {
    
 
     fn propose(&mut self) {
-        while self.requests.is_empty() == true {
-            // skipped first if as there is no reconfig operation
+        // if requests is not empty
+        while self.requests.is_empty() == false {
+            // skipped first as there is no reconfig operation
             if self.decisions.contains_key(&self.slot_in) == false {
                 let command = self.requests.pop_front().unwrap();
-                self.proposals.insert(self.slot_in.clone(), command);
+                self.proposals.insert(self.slot_in.clone(), command.clone());
                 // uncomment the following line later
                 // broadcast to leaders
-                //self.replica_leader_broadcast_chan_sender.send(Propose::create(slot, command));
+                self.replica_leader_broadcast_chan_sender.send(Propose::create(self.slot_in.clone(), command));
             }
             self.slot_in += 1;
         }
