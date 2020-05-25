@@ -158,11 +158,16 @@ impl Context {
                 Ok(message) => {
                     // ballot check
                     // do something for None.....................
-                    if let Some(b) = self.ballot_num.clone() {
-                        if message.get_ballot_num() > b {
-                            self.ballot_num = Some(message.get_ballot_num());
+                    match self.ballot_num.clone() {
+                        Some(b) => {
+                            if message.get_ballot_num() > b {
+                                self.ballot_num = Some(message.get_ballot_num());
+                            }
                         }
+
+                        None => { self.ballot_num = Some(message.get_ballot_num()); }
                     }
+
 
                     // send the P1b message to the scout
                     self.acceptor_leader_for_scout_mpsc_chan_senders[message.get_leader_id() as usize]
