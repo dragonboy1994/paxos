@@ -9,7 +9,7 @@ In order to run the
 
 ## Approach I took
 Generally, repos don't describe how codebase has been written. In a break from that tradition, this section will describe the approach I took in building this repository. Hopefully, this well serve as a good map for someone else who also wants to build Paxos consensus from scratch.
--[x] Add multiple leaders and one receiver and broadcast channel from receiver to leaders
+-[x]  Add multiple leaders and one receiver and broadcast channel from receiver to leaders
 
 ## Some References
 1. The original Paxos paper by Lamport  in [Part-time parliament](https://lamport.azurewebsites.net/pubs/lamport-paxos.pdf)
