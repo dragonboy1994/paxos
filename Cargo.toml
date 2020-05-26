@@ -1,5 +1,5 @@
 [package]
-name = "paxos"
+name = "paxos_PMMC"
 version = "0.1.0"
 authors = ["dragonboy1994 <soubhik@uw.edu>"]
 edition = "2018"
