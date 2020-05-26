@@ -1,1 +1,1 @@
-This is a repository for multi-Paxos protocol written in Rust. The original Paxos was proposed by Leslie Lamport. 
+This is a repository for multi-Paxos protocol without failures written in Rust. The original Paxos was proposed by Leslie Lamport in his landmark paper https://lamport.azurewebsites.net/pubs/lamport-paxos.pdf. 
