@@ -15,15 +15,15 @@ pub enum Operation {
 // the structure of command that is sent by clients to the replicas
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Command {
-    client_id: u8,
-    command_id: u8,
+    client_id: u32,
+    command_id: u32,
     operation: Operation,
 }
 
 impl Command {
     pub fn create(
-        client_id: u8,
-        command_id: u8,
+        client_id: u32,
+        command_id: u32,
         operation: Operation 
     ) -> Command {
         Command{
@@ -33,7 +33,7 @@ impl Command {
         }
     }
 
-    pub fn get_command_id(&self) -> u8 {
+    pub fn get_command_id(&self) -> u32 {
         self.command_id.clone()
     }
 
@@ -41,7 +41,7 @@ impl Command {
         self.operation.clone()
     }
     
-    pub fn get_client_id(&self) -> u8 {
+    pub fn get_client_id(&self) -> u32 {
         self.client_id.clone()
     }
 
@@ -55,19 +55,19 @@ impl Command {
 // need to order Partial ordering
 #[derive(Eq, Debug, Clone)]
 pub struct Ballot {
-    count: u16,
-    leader_id: u8,
+    count: u32,
+    leader_id: u32,
 }
 
 impl Ballot {
     // for creating the initial ballot
-    pub fn create(leader_id: u8) -> Ballot {
-        Ballot{ count: 0u16, leader_id}
+    pub fn create(leader_id: u32) -> Ballot {
+        Ballot{ count: 0u32, leader_id}
     }
 
-    pub fn increment(&self, leader_id: u8) -> Ballot {
+    pub fn increment(&self, leader_id: u32) -> Ballot {
         // increment by 1
-        Ballot{ count: self.count + 1u16, leader_id }
+        Ballot{ count: self.count + 1u32, leader_id }
     } 
 
 }
@@ -111,7 +111,7 @@ impl PartialEq for Ballot {
 #[derive(Debug, Clone)]
 pub struct Pvalue {
     ballot: Ballot,
-    slot: u8,
+    slot: u32,
     command: Command,
 }
 
@@ -120,7 +120,7 @@ impl Pvalue {
         self.ballot.clone()
     }
 
-    pub fn get_slot(&self) -> u8 {
+    pub fn get_slot(&self) -> u32 {
         self.slot.clone()
     }
 
@@ -130,7 +130,7 @@ impl Pvalue {
 
     pub fn create(
         ballot: Ballot,
-        slot: u8,
+        slot: u32,
         command: Command,
     ) -> Pvalue {
         Pvalue{ ballot, slot, command }
@@ -166,13 +166,21 @@ impl Request {
 
 // sent by replicas to clients
 pub struct Response {
-    command_id: u8,
+    command_id: u32,
     result: i32,
 }
 
 impl Response{
-    pub fn create(command_id: u8, result: i32) -> Response {
+    pub fn create(command_id: u32, result: i32) -> Response {
         Response{ command_id, result }
+    }
+
+    pub fn get_command_id(&self) -> u32 {
+        self.command_id.clone()
+    }
+
+    pub fn get_result(&self) -> i32 {
+        self.result.clone()
     }
 }
 
@@ -184,16 +192,16 @@ impl Response{
 // sent by replicas to the leaders
 #[derive(Debug, Clone)]
 pub struct Propose {
-    slot: u8,
+    slot: u32,
     command: Command,
 }
 
 impl Propose{
-    pub fn create(slot: u8, command: Command) -> Propose {
+    pub fn create(slot: u32, command: Command) -> Propose {
         Propose{ slot, command }
     }
 
-    pub fn get_slot(&self) -> u8 {
+    pub fn get_slot(&self) -> u32 {
         self.slot.clone()
     }
 
@@ -209,16 +217,16 @@ impl Propose{
 // sent by the commander in leaders to the replicas
 #[derive(Debug, Clone, Hash)]
 pub struct Decision {
-    slot: u8,
+    slot: u32,
     command: Command,
 }
 
 impl Decision {
-    pub fn get_details(self) -> (Command, u8) {
+    pub fn get_details(self) -> (Command, u32) {
         (self.command, self.slot)
     }
 
-    pub fn create(slot: u8, command: Command) -> Decision {
+    pub fn create(slot: u32, command: Command) -> Decision {
         Decision{ slot, command }
     }
 }
@@ -289,9 +297,9 @@ pub enum ScoutMessage {
 // sent by scout to the acceptor
 #[derive(Debug, Clone)]
 pub struct P1a {
-    leader_id: u8,
+    leader_id: u32,
     ballot: Ballot,
-    scout_id: u16,
+    scout_id: u32,
 }
 
 impl P1a {
@@ -299,18 +307,18 @@ impl P1a {
         self.ballot.clone()
     }
 
-    pub fn get_leader_id(&self) -> u8 {
+    pub fn get_leader_id(&self) -> u32 {
         self.leader_id.clone()
     }
 
-    pub fn get_scout_id(&self) -> u16 {
+    pub fn get_scout_id(&self) -> u32 {
         self.scout_id.clone()
     }
 
     pub fn create(
-        leader_id: u8,
+        leader_id: u32,
         ballot: Ballot,
-        scout_id: u16,       
+        scout_id: u32,       
     ) -> P1a {
         P1a{ leader_id, ballot, scout_id }
     }
@@ -324,19 +332,19 @@ impl P1a {
 // sent by acceptor to the scout
 #[derive(Debug, Clone)]
 pub struct P1b {
-    acceptor_id: u8,
+    acceptor_id: u32,
     ballot: Ballot,
     // set of pvalues accepted by the acceptor
     accepted: Vec<Pvalue>,
-    scout_id: u16,
+    scout_id: u32,
 }
 
 impl P1b {
     pub fn create(
-        acceptor_id: u8, 
+        acceptor_id: u32, 
         ballot: Ballot, 
         accepted: Vec<Pvalue>, 
-        scout_id: u16,
+        scout_id: u32,
     ) ->P1b {
         P1b{ acceptor_id, ballot, accepted, scout_id }
     }
@@ -353,7 +361,7 @@ impl P1b {
         self.accepted.clone()
     }
 
-    pub fn get_acceptor_id(&self) -> u8 {
+    pub fn get_acceptor_id(&self) -> u32 {
         self.acceptor_id.clone()
     }
 }
@@ -365,9 +373,9 @@ impl P1b {
 // sent by commander to the acceptor
 #[derive(Debug, Clone)]
 pub struct P2a {
-    leader_id: u8,
+    leader_id: u32,
     pvalue: Pvalue,
-    commander_id: u16,
+    commander_id: u32,
 }
 
 
@@ -380,18 +388,18 @@ impl P2a {
         self.pvalue.get_ballot_num()
     }
 
-    pub fn get_leader_id(&self) -> u8 {
+    pub fn get_leader_id(&self) -> u32 {
         self.leader_id.clone()
     }
 
-    pub fn get_commander_id(&self) -> u16 {
+    pub fn get_commander_id(&self) -> u32 {
         self.commander_id.clone()
     }
 
     pub fn create(
-        leader_id: u8,
+        leader_id: u32,
         pvalue: Pvalue,
-        commander_id: u16,
+        commander_id: u32,
     ) -> P2a {
         P2a{ leader_id, pvalue, commander_id }
     }
@@ -406,16 +414,16 @@ impl P2a {
 // sent by the acceptor to the commander
 #[derive(Debug, Clone)]
 pub struct P2b {
-    acceptor_id: u8,
+    acceptor_id: u32,
     ballot: Ballot,
-    commander_id: u16,
+    commander_id: u32,
 }
 
 impl P2b {
     pub fn create(
-        acceptor_id: u8, 
+        acceptor_id: u32, 
         ballot: Ballot,
-        commander_id: u16,
+        commander_id: u32,
     ) -> P2b {
         P2b{ acceptor_id, ballot, commander_id }
     }
@@ -424,7 +432,7 @@ impl P2b {
         self.ballot.clone()
     }
 
-    pub fn get_acceptor_id(&self) -> u8 {
+    pub fn get_acceptor_id(&self) -> u32 {
         self.acceptor_id.clone()
     }
 

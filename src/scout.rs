@@ -11,10 +11,10 @@ use crate::utils::{Operation, Command, Decision, Ballot, P1a, P1b, P2a, P2b, Ado
 
 pub struct Context {
     // Id of the scout
-    scout_id: u16,
+    scout_id: u32,
 
     // Id of the leader
-    leader_id: u8,
+    leader_id: u32,
 
     // broadcast handle to all acceptors
     scout_acceptor_broadcast_chan_sender: BroadcastSender<P1a>,
@@ -31,7 +31,7 @@ pub struct Context {
     ballot_num: Ballot,
 
     // list of all acceptors that have replied back with P1b
-    waitfor: Vec<u8>,
+    waitfor: Vec<u32>,
 
     // list of all pvalues received
     pvalues: Vec<Pvalue>, 
@@ -39,8 +39,8 @@ pub struct Context {
 }
 
 pub fn new(
-    scout_id: u16,
-    leader_id: u8,
+    scout_id: u32,
+    leader_id: u32,
     scout_acceptor_broadcast_chan_sender: BroadcastSender<P1a>,
     leader_scout_receiver: Receiver<P1b>,
     scout_leader_sender: Sender<ScoutMessage>,
@@ -63,7 +63,7 @@ pub fn new(
 
 
 impl Context {
-    pub fn start(mut self, num_acceptors: u8) {
+    pub fn start(mut self, num_acceptors: u32) {
         // broadcast the P1a message to all acceptors
         self.scout_acceptor_broadcast_chan_sender
             .send(P1a::create(self.leader_id.clone(), self.ballot_num.clone(), self.scout_id.clone()));
@@ -83,7 +83,7 @@ impl Context {
                                 // updating waitfor
                                 self.waitfor.push(message.get_acceptor_id());
                                 // observe that the following inequality is opposite from in the PMMC
-                                if self.waitfor.len() as u8 > num_acceptors/2 {
+                                if self.waitfor.len() as u32 > num_acceptors/2 {
                                     // sending adopted message
                                     self.scout_leader_sender
                                         .send(ScoutMessage::Adopted(Adopted::create(self.ballot_num.clone(), self.pvalues.clone())));

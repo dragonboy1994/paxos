@@ -5,34 +5,27 @@ use crate::utils::{P1a, P1b, P2a, P2b, Ballot, Pvalue};
 
 enum OperatingState {
     Paused,
-    Run(u8),
+    Run(u32),
     Exit,
 }
 
 #[derive(Clone)]
 pub enum ControlSignal {
     Paused,
-    Run(u8),
+    Run(u32),
     Exit,
 }
 
 pub struct Context {
     // ID of the leader
-    id: u8,
+    id: u32,
 
-    // all messages received in broadcast from replica
-    messages: Vec<u8>,
 
     // ballot number
     ballot_num: Option<Ballot>,
 
     // accepted set of pvalues
     accepted: Vec<Pvalue>,
-
-
-    // handle for the broadcast channel between all leaders and the acceptor
-    leader_acceptor_broadcast_chan_receiver: Vec<Receiver<u8>>,
-
 
     // handle for the broadcast channel between all scouts and the acceptor
     scout_acceptor_broadcast_chan_receiver: Vec<Receiver<P1a>>,
@@ -56,8 +49,7 @@ pub struct Context {
 }
 
 pub fn new(
-    id: u8,
-    leader_acceptor_broadcast_chan_receiver: Vec<Receiver<u8>>,
+    id: u32,
     scout_acceptor_broadcast_chan_receiver: Vec<Receiver<P1a>>,
     commander_acceptor_broadcast_chan_receiver: Vec<Receiver<P2a>>,
     acceptor_leader_for_commander_mpsc_chan_senders: Vec<Sender<P2b>>,
@@ -66,10 +58,8 @@ pub fn new(
 ) -> Context {
     let context = Context {
         id,
-        messages: Vec::new(),
         ballot_num: None,
         accepted: Vec::new(),
-        leader_acceptor_broadcast_chan_receiver,
         scout_acceptor_broadcast_chan_receiver,
         commander_acceptor_broadcast_chan_receiver,
         acceptor_leader_for_commander_mpsc_chan_senders,
@@ -88,7 +78,7 @@ impl Context {
                 loop {
                     match self.operating_state {
                         OperatingState::Paused => {
-                            println!("Acceptor {} in paused mode", self.id);
+                            // println!("Acceptor {} in paused mode", self.id);
                             let signal = self.control_chan_receiver.recv().unwrap();
                             self.control_signal_processing(signal);
                         }
@@ -96,22 +86,15 @@ impl Context {
                         OperatingState::Run(num_msgs) => {
                             // analyzing under various control channel state
                             match self.control_chan_receiver.try_recv() {
-                                // some control arrived
                                 Ok(signal) => {
-                                    println!("Acceptor {} going premature exit !!!!", self.id);
+                                    // Exit signal received
                                     self.control_signal_processing(signal);
                                 }
 
                                 // empty control channel, feel free to continue interacting with the replicas
                                 Err(TryRecvError::Empty) => {
-                                    if self.messages.len() < num_msgs as usize {
-                                        // self.message_processing();
-                                        self.processing_p1a_message_from_scout();
-                                        self.processing_p2a_message_from_commander();
-                                    } else {
-                                        println!("Acceptor {} going into paused state", self.id);
-                                        self.operating_state = OperatingState::Paused;
-                                    }
+                                    self.processing_p1a_message_from_scout();
+                                    self.processing_p2a_message_from_commander();
                                 }
 
                                 // Disconnected control channel
@@ -122,7 +105,7 @@ impl Context {
                         }
 
                         OperatingState::Exit => {
-                            println!("Acceptor {} exiting gracefully", self.id);
+                            println!("Acceptor {} deactivated.......................", self.id);
                             break;
                         }
                     }
@@ -131,26 +114,7 @@ impl Context {
             .unwrap();
     }
 
-    /*
-    // processing of the received messages
-    fn message_processing(&mut self) {
-        // iterate over the receiver handles from all the leaders to scan for any possible messages
-        for handle in &self.leader_acceptor_broadcast_chan_receiver {
-            // using try_recv() so that acceptor is free to do other activities
-            match handle.try_recv() {
-                Ok(message) => {
-                    println!(
-                        "The received message at acceptor {} is {}",
-                        self.id, message
-                    );
-                    self.messages.push(message)
-                }
 
-                _ => {}
-            }
-        }
-    }
-    */
 
 
 
@@ -223,7 +187,7 @@ impl Context {
             }
 
             ControlSignal::Exit => {
-                println!("Exit signal at Acceptor {} received", self.id);
+                // println!("Exit signal at Acceptor {} received", self.id);
                 self.operating_state = OperatingState::Exit;
             }
         }

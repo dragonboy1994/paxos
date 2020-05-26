@@ -12,10 +12,10 @@ use crate::utils::{Operation, Command, Decision, Ballot, P1a, P1b, P2a, P2b, Ado
 pub struct Context {
 
     // Id of the commander
-    commander_id: u16,
+    commander_id: u32,
 
     // Id of the leader
-    leader_id: u8,
+    leader_id: u32,
 
     // sending handle of the broadcast channel from commander to replica
     leader_replica_broadcast_chan_sender: BroadcastSender<Decision>,
@@ -32,13 +32,13 @@ pub struct Context {
     commander_leader_sender: Sender<Preempted>,
 
     // list of all acceptors that have replied back with P1b
-    waitfor: Vec<u8>,
+    waitfor: Vec<u32>,
 
     // ballot num the scout is responsible for
     ballot_num: Ballot,
     
     // slot 
-    slot: u8,
+    slot: u32,
     
     // command
     command: Command
@@ -47,14 +47,14 @@ pub struct Context {
 
 
 pub fn new(
-    commander_id: u16,
-    leader_id: u8,
+    commander_id: u32,
+    leader_id: u32,
     leader_replica_broadcast_chan_sender: BroadcastSender<Decision>,
     commander_acceptor_broadcast_chan_sender: BroadcastSender<P2a>,
     leader_commander_receiver: Receiver<P2b>,
     commander_leader_sender: Sender<Preempted>,
     ballot_num: Ballot,
-    slot: u8,
+    slot: u32,
     command: Command,
 ) -> Context {
     let context = Context {
@@ -77,7 +77,7 @@ pub fn new(
 
 impl Context{
 
-    pub fn start(mut self, num_acceptors: u8) {
+    pub fn start(mut self, num_acceptors: u32) {
 
         // broadcast th P2a message to all acceptors
         self.commander_acceptor_broadcast_chan_sender
@@ -102,7 +102,7 @@ impl Context{
                                 // updating waitfor
                                 self.waitfor.push(message.get_acceptor_id());
                                 // observe that the following inequality is opposite from in the PMMC
-                                if self.waitfor.len() as u8 > num_acceptors/2 {
+                                if self.waitfor.len() as u32 > num_acceptors/2 {
                                     // broadcast to all replicas
                                     self.leader_replica_broadcast_chan_sender
                                         .send(Decision::create(self.slot, self.command));

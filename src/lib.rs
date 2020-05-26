@@ -9,8 +9,7 @@ mod utils;
 mod scout;
 mod commander;
 
-//use crate::replica;
-//use crate::leader;
+
 use crate::broadcast_channel::BroadcastSender;
 use crate::utils::{Operation, Command, Request, Decision, Response, Propose, P1a, P1b, P2a, P2b};
 
@@ -38,19 +37,19 @@ impl SystemHandles {
     ) -> SystemHandles {
         // get the client control channels for the clients
         let (client_control_chan_sender, client_control_chan_receivers) =
-            broadcast_channel::construct::<client::ControlSignal>(client_count.clone() as u8);
+            broadcast_channel::construct::<client::ControlSignal>(client_count.clone() as u32);
 
         // get the broadcast control channels for the replicas
         let (replica_control_chan_sender, replica_control_chan_receivers) =
-            broadcast_channel::construct::<replica::ControlSignal>(replica_count.clone() as u8);
+            broadcast_channel::construct::<replica::ControlSignal>(replica_count.clone() as u32);
 
         // get the broadcast control channels for the leaders
         let (leader_control_chan_sender, leader_control_chan_receivers) =
-            broadcast_channel::construct::<leader::ControlSignal>(leader_count.clone() as u8);
+            broadcast_channel::construct::<leader::ControlSignal>(leader_count.clone() as u32);
 
         // get the broadcast control channels for the acceptors
         let (acceptor_control_chan_sender, acceptor_control_chan_receivers) =
-            broadcast_channel::construct::<acceptor::ControlSignal>(acceptor_count.clone() as u8);
+            broadcast_channel::construct::<acceptor::ControlSignal>(acceptor_count.clone() as u32);
 
 
 
@@ -115,7 +114,7 @@ impl SystemHandles {
         for leader_id in 0..leader_count {
             // get the broadcasts channel from the leader to replicas
             let (leader_replica_broadcast_chan_sender, leader_replica_broadcast_chan_receivers) =
-                broadcast_channel::construct::<Decision>(replica_count.clone() as u8);
+                broadcast_channel::construct::<Decision>(replica_count.clone() as u32);
 
             // collect the sender handles for the leaders
             hashmap_leader_replica_broadcast_chan_senders
@@ -141,7 +140,7 @@ impl SystemHandles {
         for client_id in 0..client_count {
             // get the broadcast channel from current client to all replicas
             let (client_replica_broadcast_chan_sender, client_replica_broadcast_chan_receivers) =
-                broadcast_channel::construct::<Request>(replica_count.clone() as u8);
+                broadcast_channel::construct::<Request>(replica_count.clone() as u32);
 
             // get the mpsc channel from replicas to client
             let (replica_client_mpsc_chan_sender, replica_client_mpsc_chan_receiver) = unbounded();
@@ -150,7 +149,7 @@ impl SystemHandles {
 
             // build the client
             let client_context = client::new(
-                client_id as u8,
+                client_id as u32,
                 client_replica_broadcast_chan_sender,
                 replica_client_mpsc_chan_receiver,
                 split_client_control_chan_receivers.pop().unwrap(),
@@ -212,12 +211,12 @@ impl SystemHandles {
 
             // get the broadcast channel from curent replica to all leaders
             let (replica_leader_broadcast_chan_sender, replica_leader_broadcast_chan_receivers) =
-                broadcast_channel::construct::<Propose>(leader_count.clone() as u8);
+                broadcast_channel::construct::<Propose>(leader_count.clone() as u32);
 
             // build the replica
             // do note that one clone of replica_all_clients_mpsc_chan_senders is left unassigned to any replica
             let replica_context = replica::new(
-                replica_id as u8,
+                replica_id as u32,
                 client_replica_broadcast_chan_receivers,
                 replica_all_clients_mpsc_chan_senders.clone(),
                 replica_leader_broadcast_chan_sender,
@@ -269,11 +268,11 @@ impl SystemHandles {
 
             // get the broadcast channel from curent leader to all acceptors
             let (leader_acceptor_broadcast_chan_sender, leader_acceptor_broadcast_chan_receivers) =
-                broadcast_channel::construct::<u8>(acceptor_count.clone() as u8);
+                broadcast_channel::construct::<u32>(acceptor_count.clone() as u32);
             let (scout_acceptor_broadcast_chan_sender, scout_acceptor_broadcast_chan_receivers) =
-                broadcast_channel::construct::<P1a>(acceptor_count.clone() as u8);
+                broadcast_channel::construct::<P1a>(acceptor_count.clone() as u32);
             let (commander_acceptor_broadcast_chan_sender, commander_acceptor_broadcast_chan_receivers) = 
-                broadcast_channel::construct::<P2a>(acceptor_count.clone() as u8);
+                broadcast_channel::construct::<P2a>(acceptor_count.clone() as u32);
 
 
             // get the mpsc channel from acceptors to the leaders
@@ -290,13 +289,12 @@ impl SystemHandles {
 
             // build the leader
             let leader_context = leader::new(
-                leader_id as u8,
-                acceptor_count as u8,
+                leader_id as u32,
+                acceptor_count as u32,
                 replica_leader_broadcast_chan_receivers,
                 hashmap_leader_replica_broadcast_chan_senders
                     .remove(&leader_id)
                     .unwrap(),
-                leader_acceptor_broadcast_chan_sender,
                 scout_acceptor_broadcast_chan_sender,
                 commander_acceptor_broadcast_chan_sender,
                 acceptor_leader_for_commander_mpsc_chan_receiver,
@@ -308,13 +306,6 @@ impl SystemHandles {
             leader_context.start();
 
             // collect the receiver handles for acceptors in the hashmap
-            let mut split_leader_acceptor_broadcast_chan_receivers =
-                leader_acceptor_broadcast_chan_receivers.handle_split();
-            split_leader_acceptor_broadcast_chan_receivers.reverse();
-            hashmap_leader_acceptor_broadcast_chan_receivers
-                .insert(leader_id, split_leader_acceptor_broadcast_chan_receivers);
-
-
             let mut split_scout_acceptor_broadcast_chan_receivers = 
                 scout_acceptor_broadcast_chan_receivers.handle_split();
             split_scout_acceptor_broadcast_chan_receivers.reverse();
@@ -344,25 +335,6 @@ impl SystemHandles {
         // iterate over each acceptor
         for acceptor_id in 0..acceptor_count {
             // collect the receiver handles of the broadcast channels from all the leaders
-            let mut leader_acceptor_broadcast_chan_receivers: Vec<Receiver<u8>> = Vec::new();
-
-            for leader_id in 0..leader_count {
-                // retrieving the entry corresponding to leader_id
-                // this approach taken because HashMap doesn't implement IndexMut trait
-                let mut hashmap_entry_leader_id = hashmap_leader_acceptor_broadcast_chan_receivers
-                    .remove(&leader_id)
-                    .unwrap();
-
-                // update
-                leader_acceptor_broadcast_chan_receivers
-                    .push(hashmap_entry_leader_id.pop().unwrap());
-
-                // insert back the entry corresponding to leader_id
-                hashmap_leader_acceptor_broadcast_chan_receivers
-                    .insert(leader_id, hashmap_entry_leader_id);
-            }
-
-
 
             let mut scout_acceptor_broadcast_chan_receivers: Vec<Receiver<P1a>> = Vec::new();
             for leader_id in 0..leader_count {
@@ -390,8 +362,7 @@ impl SystemHandles {
 
             // build the acceptor
             let acceptor_context = acceptor::new(
-                acceptor_id as u8,
-                leader_acceptor_broadcast_chan_receivers,
+                acceptor_id as u32,
                 scout_acceptor_broadcast_chan_receivers,
                 commander_acceptor_broadcast_chan_receivers,
                 acceptor_all_leaders_for_commanders_mpsc_chan_senders.clone(),
@@ -413,12 +384,18 @@ impl SystemHandles {
         }
     }
 
-    pub fn activate_broadcast(
+
+
+
+
+
+
+    pub fn operation_control(
         &self,
-        num_broadcasts: u8,
-        client_count: u8,
-        replica_count: u8,
-        leader_count: u8,
+        num_broadcasts: u32,
+        client_count: u32,
+        replica_count: u32,
+        leader_count: u32,
     ) {
         // activating clients, replicas, leaders and acceptors; broadcast will start now
         self.client_control_chan_sender
@@ -434,10 +411,9 @@ impl SystemHandles {
                 leader_count * replica_count * client_count * num_broadcasts,
             ));
 
-        thread::sleep(Duration::from_secs(10));
-        println!(
-            "Exit signal sent; hopefully, clients, leaders, replicas, acceptors in paused mode"
-        );
+        thread::sleep(Duration::from_secs(30));
+        
+        // Exit signal being sent to all
         self.client_control_chan_sender
             .send(client::ControlSignal::Exit);
         self.replica_control_chan_sender
@@ -446,9 +422,18 @@ impl SystemHandles {
             .send(leader::ControlSignal::Exit);
         self.acceptor_control_chan_sender
             .send(acceptor::ControlSignal::Exit);
-        thread::sleep(Duration::from_secs(10));
+
+        // some grace period so that everyone has exited/deactivated    
+        thread::sleep(Duration::from_secs(15));
     }
 }
+
+
+
+
+
+
+
 
 #[cfg(test)]
 mod tests {
@@ -456,22 +441,22 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let client_count = 2 as usize;
+        let client_count = 3 as usize;
         let replica_count = 3 as usize;
         let leader_count = 3 as usize;
         let acceptor_count = 3 as usize;
-        let num_msgs = 4u8;
+        let num_msgs = 8u32;
         let system_handles = SystemHandles::system_handle_management(
             client_count,
             replica_count,
             leader_count,
             acceptor_count,
         );
-        system_handles.activate_broadcast(
+        system_handles.operation_control(
             num_msgs,
-            client_count as u8,
-            replica_count as u8,
-            leader_count as u8,
+            client_count as u32,
+            replica_count as u32,
+            leader_count as u32,
         );
         assert_eq!(2 + 2, 4);
     }

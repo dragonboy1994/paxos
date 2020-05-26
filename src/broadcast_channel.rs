@@ -13,7 +13,8 @@ impl<T: std::clone::Clone> BroadcastSender<T> {
     // called by sender
     pub fn send(&self, data: T) {
         for receiver_id in 0..self.0.len() {
-            self.0[receiver_id].send(data.clone()).unwrap();
+            self.0[receiver_id]
+            .send(data.clone()).expect("Acceptor at the receive has been deactivated !!! No need to panic !!!");
         }
     }
 }
@@ -27,7 +28,7 @@ impl<T: std::clone::Clone> BroadcastReceivers<T> {
 
 // constructing the broadcast channel
 pub fn construct<T: std::clone::Clone>(
-    num_receivers: u8,
+    num_receivers: u32,
 ) -> (BroadcastSender<T>, BroadcastReceivers<T>) {
     let mut senders: Vec<Sender<T>> = Vec::new();
     let mut receivers: Vec<Receiver<T>> = Vec::new();

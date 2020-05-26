@@ -3,7 +3,8 @@ use std::collections::VecDeque;
 use std::thread;
 use std::time::Duration;
 use std::collections::HashMap;
-
+use std::sync::atomic::compiler_fence;
+use std::sync::atomic::Ordering;
 
 use crate::broadcast_channel::BroadcastSender;
 use crate::utils::{Operation, Command, Request, Decision, Response, Propose};
@@ -11,28 +12,24 @@ use crate::utils::{Operation, Command, Request, Decision, Response, Propose};
 
 enum OperatingState {
     Paused,
-    Run(u8),
+    Run(u32),
     Exit,
 }
 
 #[derive(Clone)]
 pub enum ControlSignal {
     Paused,
-    Run(u8),
+    Run(u32),
     Exit,
 }
 
 pub struct Context {
     // ID of the leader
-    id: u8,
+    id: u32,
 
 
 
     // for broadcast mechanism
-    // collecting all messages received in broadcast at replica from client
-    // push new messages from back, pop old messages from front
-    // this is a dummy variable -> remove later
-    messages_from_client: VecDeque<u8>,
 
     // handle for the broadcast channel between all clients and the replica
     client_replica_broadcast_chan_receiver: Vec<Receiver<Request>>,
@@ -60,19 +57,19 @@ pub struct Context {
     state: i32, 
 
     // index of the next slot in replica has not proposed any command yet
-    slot_in: u8,
+    slot_in: u32,
 
     // index of the next slot for which decision has to be leanred before it can update application state
-    slot_out: u8,
+    slot_out: u32,
 
     // set of requests that replica hasn't proposed or decided yet
     requests: VecDeque<Command>,
 
     // set of proposals that are currently outstanding
-    proposals: HashMap<u8, Command>,
+    proposals: HashMap<u32, Command>,
 
     // set of proposals that are known to have been decided
-    decisions: HashMap<u8, Command>,
+    decisions: HashMap<u32, Command>,
 
     // skipping the leaders for now
     //static configuration
@@ -80,7 +77,7 @@ pub struct Context {
 }
 
 pub fn new(
-    id: u8,
+    id: u32,
     client_replica_broadcast_chan_receiver: Vec<Receiver<Request>>,
     replica_all_clients_mpsc_chan_senders: Vec<Sender<Response>>,
     replica_leader_broadcast_chan_sender: BroadcastSender<Propose>,
@@ -89,7 +86,6 @@ pub fn new(
 ) -> Context {
     let context = Context {
         id,
-        messages_from_client: VecDeque::new(),
         client_replica_broadcast_chan_receiver,
         replica_all_clients_mpsc_chan_senders,
         replica_leader_broadcast_chan_sender,
@@ -97,8 +93,8 @@ pub fn new(
         control_chan_receiver,
         operating_state: OperatingState::Paused,
         state: 0i32,
-        slot_in: 1u8,
-        slot_out: 1u8,
+        slot_in: 1u32,
+        slot_out: 1u32,
         requests: VecDeque::new(),
         proposals: HashMap::new(),
         decisions: HashMap::new()
@@ -114,7 +110,7 @@ impl Context {
                 loop {
                     match self.operating_state {
                         OperatingState::Paused => {
-                            println!("Replica {} in paused mode", self.id);
+                            // println!("Replica {} in paused mode", self.id);
                             let signal = self.control_chan_receiver.recv().unwrap();
                             // transition in operating state
                             self.handle_control_signal(signal);
@@ -124,23 +120,13 @@ impl Context {
                             // send message to the receiver
                             match self.control_chan_receiver.try_recv() {
                                 Ok(signal) => {
-                                    // transition in operating state
-                                    println!("Replica {} Not handled properly yet !!!!", self.id);
+                                    // Exit signal received
                                     self.handle_control_signal(signal);
                                 }
                                 Err(TryRecvError::Empty) => {
-                                    if self.slot_out <= num_msgs {
-                                        self.processing_broadcast_message_from_client();
-
-                                        // uncomment them later
-                                        self.processing_decision_message_from_leader();
-                                        self.propose();
-                                    } else {
-                                        println!("Replica {} Going into paused state", self.id);
-                                        println!("Decision list at replica {} is {:#?}", self.id, self.decisions);
-                                        println!("The state at replica {} is {}", self.id, self.state);
-                                        self.operating_state = OperatingState::Paused;
-                                    }
+                                    self.processing_broadcast_message_from_client();
+                                    self.processing_decision_message_from_leader();
+                                    self.propose();  
                                 }
                                 Err(TryRecvError::Disconnected) => {
                                     panic!("Replica control channel detached")
@@ -149,7 +135,10 @@ impl Context {
                         }
 
                         OperatingState::Exit => {
-                            println!("Replica {} exiting gracefully", self.id);
+                            // uncomment the following if you want to see the log
+                            // println!("Decision list at replica {} is {:#?}", self.id, self.decisions);
+                            println!("The state at replica {} is {}", self.id, self.state);
+                            println!("Replica {} deactivated.......................", self.id);
                             break;
                         }
                     }
@@ -203,10 +192,48 @@ impl Context {
                                 self.requests.push_back(command_prime_prime);
                             }
                         }
-                        self.state = self.perform(command_prime);
-                        // slot_out increment outside because of error with mutable and immutable
-                        // we will come back to it later
-                        self.slot_out += 1;
+
+
+
+
+                        let mut next = 0i32;
+                        let mut result = 0i32;  
+
+                        // skipping the true case as it only involves slot_out increment only
+                        // increment done outside
+                        if self.decision_contains_command(command_prime.clone()) == false {
+                            // getting updated state
+                            // state and result same for our case -> bit unclear
+                            match command_prime.get_operation() {
+                                Operation::Add(x) => {
+                                    next = self.state.clone() + x;
+                                    result = self.state.clone() + x;
+                                }
+
+                                Operation::Subtract(y) => {
+                                    next = self.state.clone() - y;
+                                    result = self.state.clone() - y;
+
+                                }
+
+                                Operation::Multiply(z) => {
+                                    next = self.state.clone() * z;
+                                    result = self.state.clone() * z;
+                                }
+
+                                _ => {}
+                            }
+                            self.replica_all_clients_mpsc_chan_senders[command_prime.get_client_id() as usize]
+                                .send(Response::create(command_prime.get_command_id(), result));
+
+                            compiler_fence(Ordering::Acquire);
+                            self.slot_out += 1;
+                            self.state = next;
+                            compiler_fence(Ordering::Release);
+                        } else {
+                            self.slot_out += 1;
+                        }
+                        
                     }
                 }
 
@@ -230,7 +257,7 @@ impl Context {
         return false;
     }
 
-
+    /*
     fn perform(&self, command: Command)-> i32 {
 
         let mut next = 0i32;
@@ -261,17 +288,19 @@ impl Context {
                 _ => {}
             }
         }
+        
 
+        
         // send response to the client
-        // println!("Replica {} has sent reponse", self.id);
         self.replica_all_clients_mpsc_chan_senders[command.get_client_id() as usize]
             .send(Response::create(command.get_command_id(), result));
 
+        println!("state update sent {} at replica {}", next, self.id);
         next
 
 
     }
-
+    */
    
 
     fn propose(&mut self) {
@@ -306,7 +335,7 @@ impl Context {
             }
 
             ControlSignal::Exit => {
-                println!("Exit signal at Replica {} received", self.id);
+                // println!("Exit signal at Replica {} received", self.id);
                 self.operating_state = OperatingState::Exit;
             }
         }

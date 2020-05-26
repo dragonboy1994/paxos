@@ -7,20 +7,20 @@ use crate::utils::{Operation, Command, Request, Response};
 
 enum OperatingState {
     Paused,
-    Run(u8),
+    Run(u32),
     Exit,
 }
 
 #[derive(Clone)]
 pub enum ControlSignal {
     Paused,
-    Run(u8),
+    Run(u32),
     Exit,
 }
 
 pub struct Context {
     // ID of the client
-    id: u8,
+    id: u32,
 
     // handle to send broadcast message to replica
     client_replica_broadcast_chan_sender: BroadcastSender<Request>,
@@ -33,10 +33,13 @@ pub struct Context {
 
     // state of the replica
     operating_state: OperatingState,
+
+    // response commands IDs
+    response_command_ids: Vec<u32>,
 }
 
 pub fn new(
-    id: u8,
+    id: u32,
     client_replica_broadcast_chan_sender: BroadcastSender<Request>,
     replica_client_mpsc_chan_receiver: Receiver<Response>,
     control_chan_receiver: Receiver<ControlSignal>,
@@ -47,21 +50,26 @@ pub fn new(
         replica_client_mpsc_chan_receiver,
         control_chan_receiver,
         operating_state: OperatingState::Paused,
+        response_command_ids: Vec::new(),
     };
 
     context
 }
 
+
+
 impl Context {
     pub fn start(mut self) {
         thread::Builder::new()
             .spawn(move || {
-                let mut num = 1u8;
+                let mut num_commands = 1u32;
+                let mut num_responses = 1u32;
 
                 loop {
+                                       
                     match self.operating_state {
                         OperatingState::Paused => {
-                            println!("Client {} in paused mode", self.id);
+                            // println!("Client {} in paused mode", self.id);
                             let signal = self.control_chan_receiver.recv().unwrap();
                             // transition in operating state
                             self.handle_control_signal(signal);
@@ -71,16 +79,20 @@ impl Context {
                             // pattern matching the control channel messages
                             match self.control_chan_receiver.try_recv() {
                                 Ok(signal) => {
-                                    println!("Client {} Not handled properly yet !!!!", self.id);
+                                    println!("Client {} Not handled properly yet! Increase the grace time period!", self.id);
                                     // transition in operating state
                                     self.handle_control_signal(signal);
                                 }
                                 Err(TryRecvError::Empty) => {
-                                    if num <= num_msgs {
-                                        self.send_broadcast_message(num.clone());
-                                        num += 1;
+                                    if num_commands <= num_msgs {
+                                        self.send_broadcast_message(num_commands.clone());
+                                        num_commands += 1;
+                                    }
+                                    
+                                    if num_responses <= num_msgs {
+                                        num_responses = self.processing_response_message(num_responses.clone());
                                     } else {
-                                        println!("Client {} Going into paused state", self.id);
+                                        // println!("Client {} Going into paused state", self.id);
                                         self.operating_state = OperatingState::Paused;
                                     }
                                 }
@@ -91,7 +103,7 @@ impl Context {
                         }
 
                         OperatingState::Exit => {
-                            println!("Client {} exiting gracefully", self.id);
+                            println!("Client {} deactivated.......................", self.id);
                             break;
                         }
                     }
@@ -102,7 +114,9 @@ impl Context {
             .unwrap();
     }
 
-    fn send_broadcast_message(&self, num: u8) {
+
+
+    fn send_broadcast_message(&self, num: u32) {
         let mut operation = Operation::Null;
 
         match num%4 {
@@ -113,12 +127,37 @@ impl Context {
         }
 
         let command = Command::create( self.id.clone(), num, operation);
-        // println!("Command is {:#?}", command);
 
-        // println!("Client {} has broadcast a Request", self.id);
         self.client_replica_broadcast_chan_sender
             .send(Request::create(command));
     }
+
+
+
+
+
+    // function for handling response message coming from the replicas
+    fn processing_response_message(&mut self, mut num_responses: u32) -> u32 {
+
+        if let Ok(response) = &self.replica_client_mpsc_chan_receiver.try_recv() {
+            if self.response_command_ids.contains(&response.get_command_id()) == false {
+                println!("Result for command with command ID {} at client {} is: {}", 
+                        response.get_command_id(), 
+                        self.id,
+                        response.get_result());
+
+                // update num_responses only it is a new command
+                self.response_command_ids.push(response.get_command_id().clone());
+                num_responses += 1;
+            }
+        }
+
+        num_responses
+    } 
+
+
+
+
 
     fn handle_control_signal(&mut self, signal: ControlSignal) {
         // change the operating state
@@ -133,7 +172,7 @@ impl Context {
             }
 
             ControlSignal::Exit => {
-                println!("Exit signal at Client {} received", self.id);
+                // println!("Exit signal at Client {} received", self.id);
                 self.operating_state = OperatingState::Exit;
             }
         }
