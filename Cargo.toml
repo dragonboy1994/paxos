@@ -1,9 +1,12 @@
 [package]
 name = "paxos"
 version = "0.1.0"
-authors = ["DetectivePikachu <soubhikdeb1994@gmail.com>"]
+authors = ["Dragonboy <soubhik@uw.edu>"]
 edition = "2018"
-
+license = "MIT"
+repository = "https://github.com/dragonboy1994/paxos"
+description = "This is the Rust implementation of the paxos as described in the paper - Paxos made moderately complex; config is yet be handled"
+keywords = ["consensus", "paxos"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
