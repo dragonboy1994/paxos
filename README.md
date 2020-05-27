@@ -4,8 +4,11 @@ Paxos is a Rust implementation for multi-Paxos protocol without crash failures. 
 
 Note that the code in the repo can't handle crash failures yet -> in the context of PMMC, there is no functionality for handling config commands. I may add it later if this repo gets enough attention.
 
-## Overview
-In order to run the 
+## Execution
+Run them with Cargo:
+```sh
+cargo run 
+```
 
 
 ## Approach I took
