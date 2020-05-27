@@ -20,7 +20,12 @@ Generally, repos don't describe how codebase has been written. In a break from t
 - Update the commands sent by clients
 - Change the broadcast channel from client to the replicas - messages will be Request
 - Update the replica context
-- Change the broadcast channel from leader to the replicas - message
+- Change the broadcast channel from leader to the replicas - messages will be P1a, P2a
+- Propose added in replica, scout to acceptor broadcast channel added
+- Work on acceptor’s message processing -> added processing of both P1a and P2a, added new communication channels
+- Add scouts and add dynamic broadcast channels from leader to their respective scouts
+- Add commanders and add dynamic broadcast channels from leader to their respective commanders
+- Add acceptors and communication channels from scouts/commanders to acceptors
 
 
 
